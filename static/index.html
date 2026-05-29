@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="myStock 股票追蹤儀表板 — 即時追蹤台股與美股的股價變化，支援建倉記錄與漲跌幅計算">
+    <title>myStock — 股票追蹤儀表板</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- 背景粒子裝飾 -->
+    <div class="bg-decoration">
+        <div class="bg-orb bg-orb-1"></div>
+        <div class="bg-orb bg-orb-2"></div>
+        <div class="bg-orb bg-orb-3"></div>
+    </div>
+
+    <div class="app-container">
+        <!-- 頂部標題列 -->
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo">
+                    <span class="logo-icon">📈</span>
+                    <h1>myStock</h1>
+                </div>
+                <p class="subtitle">股票追蹤儀表板</p>
+            </div>
+            <div class="header-right">
+                <div class="status-indicator" id="statusIndicator">
+                    <span class="status-dot"></span>
+                    <span class="status-text">即時更新中</span>
+                </div>
+                <div class="refresh-control">
+                    <label for="refreshInterval">更新間隔</label>
+                    <select id="refreshInterval">
+                        <option value="5">5 秒</option>
+                        <option value="15" selected>15 秒</option>
+                        <option value="30">30 秒</option>
+                        <option value="60">60 秒</option>
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <!-- 搜尋區域 -->
+        <section class="search-section">
+            <div class="search-box">
+                <div class="search-icon">🔍</div>
+                <input
+                    type="text"
+                    id="searchInput"
+                    placeholder="輸入股票代號或公司名稱（例：2330、AAPL、台積電）"
+                    autocomplete="off"
+                >
+                <button id="searchBtn" class="search-btn">搜尋</button>
+            </div>
+            <!-- 搜尋結果下拉 -->
+            <div class="search-results" id="searchResults"></div>
+        </section>
+
+        <!-- 股票追蹤列表 -->
+        <section class="stock-table-section">
+            <div class="table-header-bar">
+                <h2>追蹤清單</h2>
+                <span class="stock-count" id="stockCount">0 檔</span>
+            </div>
+            <div class="table-container">
+                <table class="stock-table" id="stockTable">
+                    <thead>
+                        <tr>
+                            <th>股票代號</th>
+                            <th>股票名稱</th>
+                            <th>建倉日</th>
+                            <th>建倉股價</th>
+                            <th>最新股價</th>
+                            <th>漲跌幅</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stockTableBody">
+                        <!-- 動態填充 -->
+                    </tbody>
+                </table>
+                <!-- 空狀態 -->
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-icon">📊</div>
+                    <p>尚未追蹤任何股票</p>
+                    <p class="empty-hint">使用上方搜尋框加入股票到追蹤清單</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 最後更新時間 -->
+        <footer class="app-footer">
+            <span id="lastUpdate">尚未更新</span>
+            <span class="footer-divider">|</span>
+            <span>台股資料來自 TWSE/TPEx・美股資料來自 Yahoo Finance（約 15 分鐘延遲）</span>
+        </footer>
+    </div>
+
+    <!-- 建倉資料輸入對話框 -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle">加入追蹤</h3>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-stock-info" id="modalStockInfo">
+                    <!-- 動態填充 -->
+                </div>
+                <div class="form-group">
+                    <label for="entryDate">建倉日</label>
+                    <input type="date" id="entryDate">
+                </div>
+                <div class="form-group">
+                    <label for="entryPrice">建倉股價</label>
+                    <input type="number" id="entryPrice" step="0.01" min="0" placeholder="輸入建倉時的股價">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="modalCancel">取消</button>
+                <button class="btn btn-primary" id="modalConfirm">確認加入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 編輯對話框 -->
+    <div class="modal-overlay" id="editModalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="editModalTitle">編輯建倉資料</h3>
+                <button class="modal-close" id="editModalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-stock-info" id="editModalStockInfo"></div>
+                <div class="form-group">
+                    <label for="editEntryDate">建倉日</label>
+                    <input type="date" id="editEntryDate">
+                </div>
+                <div class="form-group">
+                    <label for="editEntryPrice">建倉股價</label>
+                    <input type="number" id="editEntryPrice" step="0.01" min="0">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="editModalCancel">取消</button>
+                <button class="btn btn-primary" id="editModalConfirm">儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

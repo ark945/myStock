@@ -1,0 +1,161 @@
+"""
+app.py — FastAPI 主應用
+提供股票搜尋、即時報價、追蹤清單 CRUD API，以及靜態前端頁面。
+資料儲存於 Supabase。
+"""
+
+import os
+import json
+from fastapi import FastAPI, Query, Body
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from typing import Optional
+from supabase import create_client, Client
+from stock_service import search_stock, get_quotes
+
+# ==========================================
+# Supabase Config (同 wordAppOnWeb 模式)
+# ==========================================
+CONFIG_FILE = "config.json"
+
+def load_config():
+    if not os.path.exists(CONFIG_FILE):
+        return {}
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+IS_CLOUD = os.environ.get("SPACE_ID") is not None
+local_cfg = load_config()
+
+if IS_CLOUD:
+    SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+    SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+else:
+    s_cfg = local_cfg.get("supabase_settings", {})
+    SUPABASE_URL = s_cfg.get("url", "")
+    SUPABASE_KEY = s_cfg.get("key", "")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    print("⚠️ 警告: 缺少 Supabase 設定資訊！")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# ==========================================
+# FastAPI App
+# ==========================================
+app = FastAPI(title="myStock", description="股票追蹤儀表板 API")
+
+
+# --- Pydantic Models ---
+class WatchlistItem(BaseModel):
+    symbol: str
+    name: str = ""
+    market: str = "TW"
+    entry_date: str = ""
+    entry_price: Optional[float] = None
+
+
+class WatchlistUpdate(BaseModel):
+    entry_date: Optional[str] = None
+    entry_price: Optional[float] = None
+
+
+# ==========================================
+# Stock APIs
+# ==========================================
+@app.get("/api/search")
+async def api_search(
+    q: str = Query(..., description="搜尋關鍵字（股票代號或公司名稱）"),
+    max_results: int = Query(10, ge=1, le=20),
+):
+    """搜尋股票代號或公司名稱"""
+    results = search_stock(q, max_results=max_results)
+    return {"query": q, "results": results}
+
+
+@app.get("/api/quote")
+async def api_quote(
+    symbols: str = Query(..., description="股票代號，多個以逗號分隔"),
+):
+    """批次取得即時報價"""
+    symbol_list = [s.strip() for s in symbols.split(",") if s.strip()]
+    if not symbol_list:
+        return {"quotes": []}
+    quotes = get_quotes(symbol_list)
+    return {"quotes": quotes}
+
+
+# ==========================================
+# Watchlist CRUD APIs (Supabase)
+# ==========================================
+@app.get("/api/watchlist")
+async def api_get_watchlist():
+    """取得所有追蹤清單"""
+    try:
+        response = supabase.table("watchlist").select("*").order("id").execute()
+        return {"success": True, "data": response.data}
+    except Exception as e:
+        print(f"Supabase Get Watchlist Error: {e}")
+        return {"success": False, "data": [], "error": str(e)}
+
+
+@app.post("/api/watchlist")
+async def api_add_watchlist(item: WatchlistItem):
+    """加入股票到追蹤清單"""
+    try:
+        data = {
+            "symbol": item.symbol,
+            "name": item.name,
+            "market": item.market,
+            "entry_date": item.entry_date,
+            "entry_price": item.entry_price,
+        }
+        supabase.table("watchlist").upsert(data, on_conflict="symbol").execute()
+        return {"success": True}
+    except Exception as e:
+        print(f"Supabase Add Watchlist Error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.put("/api/watchlist/{symbol}")
+async def api_update_watchlist(symbol: str, update: WatchlistUpdate):
+    """更新建倉資料"""
+    try:
+        update_data = {}
+        if update.entry_date is not None:
+            update_data["entry_date"] = update.entry_date
+        if update.entry_price is not None:
+            update_data["entry_price"] = update.entry_price
+
+        if update_data:
+            supabase.table("watchlist").update(update_data).eq("symbol", symbol).execute()
+        return {"success": True}
+    except Exception as e:
+        print(f"Supabase Update Watchlist Error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.delete("/api/watchlist/{symbol}")
+async def api_delete_watchlist(symbol: str):
+    """從追蹤清單移除股票"""
+    try:
+        supabase.table("watchlist").delete().eq("symbol", symbol).execute()
+        return {"success": True}
+    except Exception as e:
+        print(f"Supabase Delete Watchlist Error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ==========================================
+# Static Files & Index
+# ==========================================
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/")
+async def index():
+    return FileResponse("static/index.html")
