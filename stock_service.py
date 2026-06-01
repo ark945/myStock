@@ -91,49 +91,83 @@ def get_quotes(symbols: list[str]) -> list[dict]:
     for sym in tw_symbols:
         try:
             data = twstock.realtime.get(sym)
+            price = None
+            name = ""
+            timestamp = ""
+            success = False
+            error = None
+
             if data and data.get("success"):
                 info = data.get("info", {})
                 realtime = data.get("realtime", {})
+                name = info.get("name", "")
+                timestamp = info.get("time", "")
 
                 # 取得最新成交價
                 best_bid_price = realtime.get("latest_trade_price", "")
-                if not best_bid_price:
+                if not best_bid_price or best_bid_price == "-":
                     # fallback: 使用最佳買價
-                    best_bid_price = realtime.get("best_bid_price", [""])[0] if isinstance(
-                        realtime.get("best_bid_price"), list
-                    ) else ""
+                    best_bid_prices = realtime.get("best_bid_price")
+                    if isinstance(best_bid_prices, list) and len(best_bid_prices) > 0:
+                        best_bid_price = best_bid_prices[0]
+                    else:
+                        best_bid_price = ""
 
                 price = _safe_float(best_bid_price)
-                open_price = _safe_float(realtime.get("open", ""))
-                yesterday_close = _safe_float(data.get("realtime", {}).get("latest_trade_price", ""))
-
-                results.append({
-                    "symbol": sym,
-                    "name": info.get("name", ""),
-                    "price": price,
-                    "market": "TW",
-                    "timestamp": info.get("time", ""),
-                    "success": True,
-                })
+                if price is not None:
+                    success = True
+                else:
+                    error = "即時成交價不可用（可能非交易時段）"
             else:
-                results.append({
-                    "symbol": sym,
-                    "name": "",
-                    "price": None,
-                    "market": "TW",
-                    "timestamp": "",
-                    "success": False,
-                    "error": data.get("rtmessage", "查詢失敗") if data else "無資料",
-                })
-        except Exception as e:
+                error = data.get("rtmessage", "查詢失敗") if data else "無資料"
+
+            # --- Fallback: 若即時價格不可用，嘗試取得歷史最後收盤價 ---
+            if price is None:
+                try:
+                    s = twstock.Stock(sym)
+                    if s and s.close and len(s.close) > 0:
+                        price = _safe_float(s.close[-1])
+                        if price is not None:
+                            success = True
+                            error = None
+                            # 若 realtime 未取得名稱，試著從 twstock.codes 取得
+                            if not name and sym in twstock.codes:
+                                name = twstock.codes[sym].name
+                except Exception as ex:
+                    if not error:
+                        error = f"歷史價格獲取失敗: {str(ex)}"
+
             results.append({
                 "symbol": sym,
-                "name": "",
-                "price": None,
+                "name": name,
+                "price": price,
+                "market": "TW",
+                "timestamp": timestamp,
+                "success": success,
+                **({"error": error} if not success and error else {})
+            })
+
+        except Exception as e:
+            # 發生異常，也嘗試用 Stock 作為最後的 fallback
+            price = None
+            name = ""
+            try:
+                s = twstock.Stock(sym)
+                if s and s.close and len(s.close) > 0:
+                    price = _safe_float(s.close[-1])
+                    if sym in twstock.codes:
+                        name = twstock.codes[sym].name
+            except Exception:
+                pass
+
+            results.append({
+                "symbol": sym,
+                "name": name,
+                "price": price,
                 "market": "TW",
                 "timestamp": "",
-                "success": False,
-                "error": str(e),
+                "success": price is not None,
+                **({"error": str(e)} if price is None else {})
             })
 
     # --- 美股即時報價 ---
