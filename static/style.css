@@ -487,7 +487,8 @@ body {
     border-radius: var(--radius-xl);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    overflow: hidden;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .stock-table {
@@ -983,6 +984,7 @@ body {
 
     .stock-table {
         font-size: 13px;
+        min-width: 700px;
     }
 
     .stock-table thead th,
