@@ -14,6 +14,9 @@ from typing import Optional
 from supabase import create_client, Client
 from stock_service import search_stock, get_quotes
 
+import asyncio
+from contextlib import asynccontextmanager
+
 # ==========================================
 # Supabase Config (同 wordAppOnWeb 模式)
 # ==========================================
@@ -44,10 +47,69 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+
+# ==========================================
+# Background Price Updater
+# ==========================================
+async def price_updater_loop():
+    """背景定時更新股價的工作"""
+    # 延遲 5 秒啟動，讓 FastAPI 完成初始化
+    await asyncio.sleep(5)
+    while True:
+        try:
+            # A. 從 Supabase 取得目前所有正在追蹤的股票代號
+            response = supabase.table("watchlist").select("symbol").execute()
+            symbols = [row["symbol"] for row in response.data] if response.data else []
+            
+            if symbols:
+                # B. 呼叫 get_quotes 批次抓取最新價格
+                quotes = get_quotes(symbols)
+                
+                # C. 將更新後的價格寫回 Supabase
+                success_count = 0
+                for q in quotes:
+                    if q.get("success") and q.get("price") is not None:
+                        try:
+                            supabase.table("watchlist") \
+                                .update({
+                                    "current_price": q["price"],
+                                    "price_updated_at": "now()"
+                                }) \
+                                .eq("symbol", q["symbol"]) \
+                                .execute()
+                            success_count += 1
+                        except Exception as inner_e:
+                            print(f"寫入單筆股價 {q['symbol']} 失敗: {inner_e}")
+                            
+                print(f"背景更新成功: 已完成 {success_count}/{len(symbols)} 檔股票價格更新")
+        except Exception as e:
+            print(f"背景價格更新程序出錯: {e}")
+            
+        # 每 60 秒執行一次
+        await asyncio.sleep(60)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 啟動時：開始背景工作
+    updater_task = asyncio.create_task(price_updater_loop())
+    yield
+    # 關閉時：取消背景工作
+    updater_task.cancel()
+    try:
+        await updater_task
+    except asyncio.CancelledError:
+        pass
+
+
 # ==========================================
 # FastAPI App
 # ==========================================
-app = FastAPI(title="myStock", description="股票追蹤儀表板 API")
+app = FastAPI(
+    title="myStock",
+    description="股票追蹤儀表板 API",
+    lifespan=lifespan
+)
 
 
 # --- Pydantic Models ---

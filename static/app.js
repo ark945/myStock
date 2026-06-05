@@ -51,14 +51,20 @@ async function loadWatchlist() {
         const res = await fetch(`${API_BASE}/api/watchlist`);
         const data = await res.json();
         if (data.success) {
-            watchlist = data.data.map((item) => ({
-                id: item.id,
-                symbol: item.symbol,
-                name: item.name || "",
-                market: item.market || "TW",
-                entryDate: item.entry_date || "",
-                entryPrice: item.entry_price != null ? parseFloat(item.entry_price) : null,
-            }));
+            watchlist = data.data.map((item) => {
+                const currentPrice = item.current_price != null ? parseFloat(item.current_price) : null;
+                if (currentPrice !== null) {
+                    latestPrices[item.symbol] = currentPrice;
+                }
+                return {
+                    id: item.id,
+                    symbol: item.symbol,
+                    name: item.name || "",
+                    market: item.market || "TW",
+                    entryDate: item.entry_date || "",
+                    entryPrice: item.entry_price != null ? parseFloat(item.entry_price) : null,
+                };
+            });
         } else {
             console.error("Load watchlist error:", data.error);
             watchlist = [];
@@ -330,21 +336,26 @@ async function deleteStock(symbol) {
 async function fetchQuotes() {
     if (watchlist.length === 0) return;
 
-    const symbols = watchlist.map((s) => s.symbol).join(",");
-
     try {
-        const res = await fetch(
-            `${API_BASE}/api/quote?symbols=${encodeURIComponent(symbols)}`
-        );
+        const prevPrices = { ...latestPrices };
+
+        const res = await fetch(`${API_BASE}/api/watchlist`);
         const data = await res.json();
 
-        if (data.quotes) {
-            const prevPrices = { ...latestPrices };
-
-            data.quotes.forEach((q) => {
-                if (q.success && q.price != null) {
-                    latestPrices[q.symbol] = q.price;
+        if (data.success) {
+            watchlist = data.data.map((item) => {
+                const currentPrice = item.current_price != null ? parseFloat(item.current_price) : null;
+                if (currentPrice !== null) {
+                    latestPrices[item.symbol] = currentPrice;
                 }
+                return {
+                    id: item.id,
+                    symbol: item.symbol,
+                    name: item.name || "",
+                    market: item.market || "TW",
+                    entryDate: item.entry_date || "",
+                    entryPrice: item.entry_price != null ? parseFloat(item.entry_price) : null,
+                };
             });
 
             updatePricesInTable(prevPrices);
