@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS watchlist (
     entry_date TEXT DEFAULT '',
     entry_price NUMERIC(12, 2),
     current_price NUMERIC(12, 2),
+    yesterday_close NUMERIC(12, 2),
     price_updated_at TIMESTAMP WITH TIME ZONE,
     sort_order INT DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

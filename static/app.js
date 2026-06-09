@@ -9,6 +9,7 @@ const API_BASE = "";
 // ========== State ==========
 let watchlist = []; // [{id, symbol, name, market, entry_date, entry_price}]
 let latestPrices = {}; // {symbol: price}
+let yesterdayCloses = {}; // {symbol: price}
 let refreshTimer = null;
 let isSearching = false;
 let pendingStock = null; // 待加入的股票資訊
@@ -55,6 +56,10 @@ async function loadWatchlist() {
                 const currentPrice = item.current_price != null ? parseFloat(item.current_price) : null;
                 if (currentPrice !== null) {
                     latestPrices[item.symbol] = currentPrice;
+                }
+                const yesterdayClose = item.yesterday_close != null ? parseFloat(item.yesterday_close) : null;
+                if (yesterdayClose !== null) {
+                    yesterdayCloses[item.symbol] = yesterdayClose;
                 }
                 return {
                     id: item.id,
@@ -348,6 +353,10 @@ async function fetchQuotes() {
                 if (currentPrice !== null) {
                     latestPrices[item.symbol] = currentPrice;
                 }
+                const yesterdayClose = item.yesterday_close != null ? parseFloat(item.yesterday_close) : null;
+                if (yesterdayClose !== null) {
+                    yesterdayCloses[item.symbol] = yesterdayClose;
+                }
                 return {
                     id: item.id,
                     symbol: item.symbol,
@@ -387,10 +396,13 @@ function renderTable() {
         .map(
             (stock, idx) => {
                 const price = latestPrices[stock.symbol];
+                const yesterdayClose = yesterdayCloses[stock.symbol];
                 const { changeText, changeClass, arrow } = calcChange(
                     price,
                     stock.entryPrice
                 );
+                const dailyChange = calcDailyChange(price, yesterdayClose);
+                const pnlCash = calcPnlCash(price, stock.entryPrice, stock.market);
                 const isFirst = idx === 0;
                 const isLast = idx === watchlist.length - 1;
 
@@ -400,19 +412,33 @@ function renderTable() {
                     <span class="drag-handle" title="拖曳以排序">☰</span>
                 </td>
                 <td>
-                    <span class="cell-symbol">
-                        ${escapeHtml(stock.symbol)}
-                        <span class="market-tag ${stock.market.toLowerCase()}">${stock.market}</span>
-                    </span>
+                    <div class="cell-composite">
+                        <span class="cell-symbol">
+                            ${escapeHtml(stock.symbol)}
+                            <span class="market-tag ${stock.market.toLowerCase()}">${stock.market}</span>
+                        </span>
+                        <span class="cell-subtext cell-name" title="${escapeHtml(stock.name)}">${escapeHtml(stock.name)}</span>
+                    </div>
                 </td>
-                <td><span class="cell-name" title="${escapeHtml(stock.name)}">${escapeHtml(stock.name)}</span></td>
-                <td><span class="cell-date">${stock.entryDate || "—"}</span></td>
-                <td><span class="cell-price">${stock.entryPrice != null ? formatPrice(stock.entryPrice, stock.market) : "—"}</span></td>
-                <td><span class="cell-price ${price != null ? "" : "loading"}" data-price-cell="${stock.symbol}">${price != null ? formatPrice(price, stock.market) : "載入中..."}</span></td>
                 <td>
-                    <span class="cell-change ${changeClass}" data-change-cell="${stock.symbol}">
-                        <span class="change-badge ${changeClass}">${arrow} ${changeText}</span>
-                    </span>
+                    <div class="cell-composite">
+                        <span class="cell-price">${stock.entryPrice != null ? formatPrice(stock.entryPrice, stock.market) : "—"}</span>
+                        <span class="cell-subtext">${stock.entryDate || "—"}</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="cell-composite">
+                        <span class="cell-price ${price != null ? "" : "loading"}" data-price-cell="${stock.symbol}">${price != null ? formatPrice(price, stock.market) : "載入中..."}</span>
+                        <span class="cell-subtext ${dailyChange.classStr}" data-daily-change-cell="${stock.symbol}">${dailyChange.text}</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="cell-composite">
+                        <span class="cell-change ${changeClass}" data-change-cell="${stock.symbol}">
+                            <span class="change-badge ${changeClass}">${arrow} ${changeText}</span>
+                        </span>
+                        <span class="cell-subtext ${pnlCash.classStr}" data-pnl-cash-cell="${stock.symbol}">${pnlCash.text}</span>
+                    </div>
                 </td>
                 <td>
                     <span class="cell-actions">
@@ -436,12 +462,19 @@ function updatePricesInTable(prevPrices) {
     watchlist.forEach((stock) => {
         const price = latestPrices[stock.symbol];
         const prevPrice = prevPrices[stock.symbol];
+        const yesterdayClose = yesterdayCloses[stock.symbol];
 
         const priceCell = document.querySelector(
             `[data-price-cell="${stock.symbol}"]`
         );
+        const dailyChangeCell = document.querySelector(
+            `[data-daily-change-cell="${stock.symbol}"]`
+        );
         const changeCell = document.querySelector(
             `[data-change-cell="${stock.symbol}"]`
+        );
+        const pnlCashCell = document.querySelector(
+            `[data-pnl-cash-cell="${stock.symbol}"]`
         );
         const row = document.querySelector(`tr[data-symbol="${stock.symbol}"]`);
 
@@ -457,6 +490,12 @@ function updatePricesInTable(prevPrices) {
             }
         }
 
+        if (dailyChangeCell) {
+            const dailyChange = calcDailyChange(price, yesterdayClose);
+            dailyChangeCell.className = `cell-subtext ${dailyChange.classStr}`;
+            dailyChangeCell.textContent = dailyChange.text;
+        }
+
         if (changeCell) {
             const { changeText, changeClass, arrow } = calcChange(
                 price,
@@ -464,6 +503,12 @@ function updatePricesInTable(prevPrices) {
             );
             changeCell.className = `cell-change ${changeClass}`;
             changeCell.innerHTML = `<span class="change-badge ${changeClass}">${arrow} ${changeText}</span>`;
+        }
+
+        if (pnlCashCell) {
+            const pnlCash = calcPnlCash(price, stock.entryPrice, stock.market);
+            pnlCashCell.className = `cell-subtext ${pnlCash.classStr}`;
+            pnlCashCell.textContent = pnlCash.text;
         }
     });
 }
@@ -490,6 +535,68 @@ function calcChange(currentPrice, entryPrice) {
     }
 
     return { changeText, changeClass, arrow };
+}
+
+function calcDailyChange(currentPrice, yesterdayClose) {
+    if (currentPrice == null || yesterdayClose == null || yesterdayClose === 0) {
+        return { text: "—", classStr: "neutral" };
+    }
+    const diff = currentPrice - yesterdayClose;
+    const change = (diff / yesterdayClose) * 100;
+
+    const sign = diff > 0 ? "+" : "";
+    const arrow = diff > 0 ? "▲" : (diff < 0 ? "▼" : "");
+    const classStr = diff > 0 ? "up" : (diff < 0 ? "down" : "neutral");
+
+    const formattedDiff = Math.abs(diff).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+    const formattedChange = `${sign}${change.toFixed(2)}%`;
+
+    const text = arrow ? `${arrow} ${formattedDiff} (${formattedChange})` : `0.00 (0.00%)`;
+
+    return { text, classStr };
+}
+
+function calcPnlCash(currentPrice, entryPrice, market) {
+    if (currentPrice == null || entryPrice == null || entryPrice === 0) {
+        return { text: "—", classStr: "neutral" };
+    }
+    const diff = currentPrice - entryPrice;
+    let cash = diff;
+    let unit = "";
+    if (market === "TW") {
+        cash = diff * 1000;
+        unit = "張";
+    } else {
+        unit = "股";
+    }
+
+    const classStr = cash > 0 ? "up" : (cash < 0 ? "down" : "neutral");
+
+    let absCash = Math.abs(cash);
+    let formattedCash = "";
+    if (market === "TW") {
+        formattedCash = Math.round(absCash).toLocaleString("zh-TW");
+    } else {
+        formattedCash = absCash.toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+
+    let sign = "";
+    if (cash > 0) {
+        sign = "+$";
+    } else if (cash < 0) {
+        sign = "-$";
+    } else {
+        sign = "$";
+    }
+
+    const text = `${sign}${formattedCash} / ${unit}`;
+    return { text, classStr };
 }
 
 function formatPrice(price, market) {

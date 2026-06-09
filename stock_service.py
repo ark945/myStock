@@ -87,6 +87,30 @@ def get_quotes(symbols: list[str]) -> list[dict]:
     tw_symbols = [s for s in symbols if _is_tw_stock(s)]
     us_symbols = [s for s in symbols if not _is_tw_stock(s)]
 
+    # --- 批次獲取台股的昨日收盤價 (從 yfinance) ---
+    tw_prev_closes = {}
+    if tw_symbols:
+        tw_yf_symbols = []
+        for sym in tw_symbols:
+            if sym in twstock.codes:
+                info = twstock.codes[sym]
+                if info.market == '上市':
+                    tw_yf_symbols.append(f"{sym}.TW")
+                else:
+                    tw_yf_symbols.append(f"{sym}.TWO")
+            else:
+                tw_yf_symbols.append(f"{sym}.TW")
+        try:
+            tickers = yf.Tickers(" ".join(tw_yf_symbols))
+            for sym, yf_sym in zip(tw_symbols, tw_yf_symbols):
+                ticker = tickers.tickers.get(yf_sym.upper())
+                if ticker:
+                    prev_close = ticker.fast_info.get("previousClose") or ticker.fast_info.get("previous_close")
+                    if prev_close is not None:
+                        tw_prev_closes[sym] = round(prev_close, 2)
+        except Exception as e:
+            print(f"批次取得台股昨收失敗: {e}")
+
     # --- 台股即時報價 ---
     for sym in tw_symbols:
         try:
@@ -141,6 +165,7 @@ def get_quotes(symbols: list[str]) -> list[dict]:
                 "symbol": sym,
                 "name": name,
                 "price": price,
+                "prev_close": tw_prev_closes.get(sym),
                 "market": "TW",
                 "timestamp": timestamp,
                 "success": success,
@@ -164,6 +189,7 @@ def get_quotes(symbols: list[str]) -> list[dict]:
                 "symbol": sym,
                 "name": name,
                 "price": price,
+                "prev_close": tw_prev_closes.get(sym),
                 "market": "TW",
                 "timestamp": "",
                 "success": price is not None,
@@ -186,6 +212,7 @@ def get_quotes(symbols: list[str]) -> list[dict]:
                             "symbol": sym.upper(),
                             "name": "",  # fast_info 不含名稱，前端已有快取
                             "price": round(price, 2) if price else None,
+                            "prev_close": round(prev_close, 2) if prev_close else None,
                             "market": "US",
                             "timestamp": "",
                             "success": price is not None,

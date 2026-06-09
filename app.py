@@ -70,11 +70,15 @@ async def price_updater_loop():
                 for q in quotes:
                     if q.get("success") and q.get("price") is not None:
                         try:
+                            update_data = {
+                                "current_price": q["price"],
+                                "price_updated_at": "now()"
+                            }
+                            if q.get("prev_close") is not None:
+                                update_data["yesterday_close"] = q["prev_close"]
+
                             supabase.table("watchlist") \
-                                .update({
-                                    "current_price": q["price"],
-                                    "price_updated_at": "now()"
-                                }) \
+                                .update(update_data) \
                                 .eq("symbol", q["symbol"]) \
                                 .execute()
                             success_count += 1
@@ -176,7 +180,7 @@ async def api_add_watchlist(item: WatchlistItem):
         # 查詢當前最大 sort_order
         max_order = 0
         try:
-            response = supabase.table("watchlist").select("sort_order").order("sort_order", descending=True).limit(1).execute()
+            response = supabase.table("watchlist").select("sort_order").order("sort_order", desc=True).limit(1).execute()
             if response.data:
                 max_order = response.data[0].get("sort_order") or 0
         except Exception as order_e:
