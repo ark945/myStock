@@ -76,6 +76,14 @@ async def price_updater_loop():
                             }
                             if q.get("prev_close") is not None:
                                 update_data["yesterday_close"] = q["prev_close"]
+                            if q.get("fifty_two_week_low") is not None:
+                                update_data["fifty_two_week_low"] = q["fifty_two_week_low"]
+                            if q.get("fifty_two_week_high") is not None:
+                                update_data["fifty_two_week_high"] = q["fifty_two_week_high"]
+                            if q.get("ma_50") is not None:
+                                update_data["ma_50"] = q["ma_50"]
+                            if q.get("ma_200") is not None:
+                                update_data["ma_200"] = q["ma_200"]
 
                             supabase.table("watchlist") \
                                 .update(update_data) \

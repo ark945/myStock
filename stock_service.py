@@ -87,29 +87,30 @@ def get_quotes(symbols: list[str]) -> list[dict]:
     tw_symbols = [s for s in symbols if _is_tw_stock(s)]
     us_symbols = [s for s in symbols if not _is_tw_stock(s)]
 
-    # --- 批次獲取台股的昨日收盤價 (從 yfinance) ---
-    tw_prev_closes = {}
+    # --- 獲取台股的技術指標與昨日收盤價 (從 yfinance) ---
+    tw_metrics = {}
     if tw_symbols:
-        tw_yf_symbols = []
         for sym in tw_symbols:
             if sym in twstock.codes:
                 info = twstock.codes[sym]
-                if info.market == '上市':
-                    tw_yf_symbols.append(f"{sym}.TW")
-                else:
-                    tw_yf_symbols.append(f"{sym}.TWO")
+                suffix = ".TW" if info.market == '上市' else ".TWO"
+                yf_sym = f"{sym}{suffix}"
             else:
-                tw_yf_symbols.append(f"{sym}.TW")
-        try:
-            tickers = yf.Tickers(" ".join(tw_yf_symbols))
-            for sym, yf_sym in zip(tw_symbols, tw_yf_symbols):
-                ticker = tickers.tickers.get(yf_sym.upper())
-                if ticker:
-                    prev_close = ticker.fast_info.get("previousClose") or ticker.fast_info.get("previous_close")
-                    if prev_close is not None:
-                        tw_prev_closes[sym] = round(prev_close, 2)
-        except Exception as e:
-            print(f"批次取得台股昨收失敗: {e}")
+                yf_sym = f"{sym}.TW"
+            
+            try:
+                ticker = yf.Ticker(yf_sym)
+                inf = ticker.info
+                if inf:
+                    tw_metrics[sym] = {
+                        "prev_close": _safe_float(inf.get("previousClose") or inf.get("regularMarketPreviousClose")),
+                        "fifty_two_week_low": _safe_float(inf.get("fiftyTwoWeekLow")),
+                        "fifty_two_week_high": _safe_float(inf.get("fiftyTwoWeekHigh")),
+                        "ma_50": _safe_float(inf.get("fiftyDayAverage")),
+                        "ma_200": _safe_float(inf.get("twoHundredDayAverage")),
+                    }
+            except Exception as e:
+                print(f"取得台股 {sym} 技術指標失敗: {e}")
 
     # --- 台股即時報價 ---
     for sym in tw_symbols:
@@ -161,11 +162,16 @@ def get_quotes(symbols: list[str]) -> list[dict]:
                     if not error:
                         error = f"歷史價格獲取失敗: {str(ex)}"
 
+            metrics = tw_metrics.get(sym, {})
             results.append({
                 "symbol": sym,
                 "name": name,
                 "price": price,
-                "prev_close": tw_prev_closes.get(sym),
+                "prev_close": metrics.get("prev_close"),
+                "fifty_two_week_low": metrics.get("fifty_two_week_low"),
+                "fifty_two_week_high": metrics.get("fifty_two_week_high"),
+                "ma_50": metrics.get("ma_50"),
+                "ma_200": metrics.get("ma_200"),
                 "market": "TW",
                 "timestamp": timestamp,
                 "success": success,
@@ -185,11 +191,16 @@ def get_quotes(symbols: list[str]) -> list[dict]:
             except Exception:
                 pass
 
+            metrics = tw_metrics.get(sym, {})
             results.append({
                 "symbol": sym,
                 "name": name,
                 "price": price,
-                "prev_close": tw_prev_closes.get(sym),
+                "prev_close": metrics.get("prev_close"),
+                "fifty_two_week_low": metrics.get("fifty_two_week_low"),
+                "fifty_two_week_high": metrics.get("fifty_two_week_high"),
+                "ma_50": metrics.get("ma_50"),
+                "ma_200": metrics.get("ma_200"),
                 "market": "TW",
                 "timestamp": "",
                 "success": price is not None,
@@ -207,12 +218,20 @@ def get_quotes(symbols: list[str]) -> list[dict]:
                         fast = ticker.fast_info
                         price = fast.get("lastPrice") or fast.get("last_price")
                         prev_close = fast.get("previousClose") or fast.get("previous_close")
+                        fifty_two_week_low = fast.get("yearLow")
+                        fifty_two_week_high = fast.get("yearHigh")
+                        ma_50 = fast.get("fiftyDayAverage")
+                        ma_200 = fast.get("twoHundredDayAverage")
 
                         results.append({
                             "symbol": sym.upper(),
                             "name": "",  # fast_info 不含名稱，前端已有快取
                             "price": round(price, 2) if price else None,
                             "prev_close": round(prev_close, 2) if prev_close else None,
+                            "fifty_two_week_low": round(fifty_two_week_low, 2) if fifty_two_week_low else None,
+                            "fifty_two_week_high": round(fifty_two_week_high, 2) if fifty_two_week_high else None,
+                            "ma_50": round(ma_50, 2) if ma_50 else None,
+                            "ma_200": round(ma_200, 2) if ma_200 else None,
                             "market": "US",
                             "timestamp": "",
                             "success": price is not None,

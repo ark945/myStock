@@ -68,6 +68,10 @@ async function loadWatchlist() {
                     market: item.market || "TW",
                     entryDate: item.entry_date || "",
                     entryPrice: item.entry_price != null ? parseFloat(item.entry_price) : null,
+                    fiftyTwoWeekLow: item.fifty_two_week_low != null ? parseFloat(item.fifty_two_week_low) : null,
+                    fiftyTwoWeekHigh: item.fifty_two_week_high != null ? parseFloat(item.fifty_two_week_high) : null,
+                    ma50: item.ma_50 != null ? parseFloat(item.ma_50) : null,
+                    ma200: item.ma_200 != null ? parseFloat(item.ma_200) : null,
                 };
             });
         } else {
@@ -364,6 +368,10 @@ async function fetchQuotes() {
                     market: item.market || "TW",
                     entryDate: item.entry_date || "",
                     entryPrice: item.entry_price != null ? parseFloat(item.entry_price) : null,
+                    fiftyTwoWeekLow: item.fifty_two_week_low != null ? parseFloat(item.fifty_two_week_low) : null,
+                    fiftyTwoWeekHigh: item.fifty_two_week_high != null ? parseFloat(item.fifty_two_week_high) : null,
+                    ma50: item.ma_50 != null ? parseFloat(item.ma_50) : null,
+                    ma200: item.ma_200 != null ? parseFloat(item.ma_200) : null,
                 };
             });
 
@@ -418,6 +426,9 @@ function renderTable() {
                             <span class="market-tag ${stock.market.toLowerCase()}">${stock.market}</span>
                         </span>
                         <span class="cell-subtext cell-name" title="${escapeHtml(stock.name)}">${escapeHtml(stock.name)}</span>
+                        <div class="trend-badge-container" data-trend-cell="${stock.symbol}">
+                            ${getTrendBadge(price, stock.ma50, stock.ma200)}
+                        </div>
                     </div>
                 </td>
                 <td>
@@ -427,9 +438,12 @@ function renderTable() {
                     </div>
                 </td>
                 <td>
-                    <div class="cell-composite">
+                    <div class="cell-composite" style="width: 100%; min-width: 120px;">
                         <span class="cell-price ${price != null ? "" : "loading"}" data-price-cell="${stock.symbol}">${price != null ? formatPrice(price, stock.market) : "載入中..."}</span>
                         <span class="cell-subtext ${dailyChange.classStr}" data-daily-change-cell="${stock.symbol}">${dailyChange.text}</span>
+                        <div class="fifty-two-week-bar-container" style="width: 100%; margin-top: 4px;" data-range-cell="${stock.symbol}">
+                            ${getFiftyTwoWeekBar(price, stock.fiftyTwoWeekLow, stock.fiftyTwoWeekHigh, stock.market)}
+                        </div>
                     </div>
                 </td>
                 <td>
@@ -476,6 +490,12 @@ function updatePricesInTable(prevPrices) {
         const pnlCashCell = document.querySelector(
             `[data-pnl-cash-cell="${stock.symbol}"]`
         );
+        const trendCell = document.querySelector(
+            `[data-trend-cell="${stock.symbol}"]`
+        );
+        const rangeCell = document.querySelector(
+            `[data-range-cell="${stock.symbol}"]`
+        );
         const row = document.querySelector(`tr[data-symbol="${stock.symbol}"]`);
 
         if (priceCell && price != null) {
@@ -509,6 +529,14 @@ function updatePricesInTable(prevPrices) {
             const pnlCash = calcPnlCash(price, stock.entryPrice, stock.market);
             pnlCashCell.className = `cell-subtext ${pnlCash.classStr}`;
             pnlCashCell.textContent = pnlCash.text;
+        }
+
+        if (trendCell) {
+            trendCell.innerHTML = getTrendBadge(price, stock.ma50, stock.ma200);
+        }
+
+        if (rangeCell) {
+            rangeCell.innerHTML = getFiftyTwoWeekBar(price, stock.fiftyTwoWeekLow, stock.fiftyTwoWeekHigh, stock.market);
         }
     });
 }
@@ -597,6 +625,37 @@ function calcPnlCash(currentPrice, entryPrice, market) {
 
     const text = `${sign}${formattedCash} / ${unit}`;
     return { text, classStr };
+}
+
+function getTrendBadge(price, ma50, ma200) {
+    if (price == null || ma50 == null || ma200 == null) {
+        return `<span class="trend-badge neutral">趨勢: 載入中</span>`;
+    }
+
+    if (price > ma50 && ma50 > ma200) {
+        return `<span class="trend-badge bullish" title="多頭排列 (價格 > 50MA > 200MA)">🔴 多頭</span>`;
+    } else if (price < ma50 && ma50 < ma200) {
+        return `<span class="trend-badge bearish" title="空頭排列 (價格 < 50MA < 200MA)">🟢 空頭</span>`;
+    } else {
+        return `<span class="trend-badge neutral" title="區間整理 (價格或均線糾纏)">🟡 整理</span>`;
+    }
+}
+
+function getFiftyTwoWeekBar(price, low, high, market) {
+    if (price == null || low == null || high == null || high === low) {
+        return `<div class="range-container" title="區間資料載入中"><span class="range-val">— [ 52週區間 ] —</span></div>`;
+    }
+
+    const percent = Math.max(0, Math.min(100, ((price - low) / (high - low)) * 100));
+    return `
+    <div class="range-container" title="52週區間: ${formatPrice(low, market)} - ${formatPrice(high, market)}">
+        <span class="range-val">${formatPrice(low, market)}</span>
+        <div class="range-track">
+            <div class="range-dot" style="left: ${percent}%"></div>
+        </div>
+        <span class="range-val">${formatPrice(high, market)}</span>
+    </div>
+    `;
 }
 
 function formatPrice(price, market) {

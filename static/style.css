@@ -1115,3 +1115,75 @@ tr.dragging {
     color: var(--accent-primary);
     border-color: var(--accent-primary);
 }
+
+/* ============================================
+   波段技術指標樣式 (52週區間與均線趨勢)
+   ============================================ */
+.trend-badge-container {
+    margin-top: 4px;
+    display: flex;
+}
+
+.trend-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.trend-badge.bullish {
+    background: var(--color-up-bg);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: var(--color-up);
+}
+
+.trend-badge.bearish {
+    background: var(--color-down-bg);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    color: var(--color-down);
+}
+
+.trend-badge.neutral {
+    background: rgba(148, 163, 184, 0.06);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    color: var(--text-secondary);
+}
+
+.range-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+}
+
+.range-val {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+}
+
+.range-track {
+    position: relative;
+    flex: 1;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    min-width: 50px;
+}
+
+.range-dot {
+    position: absolute;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    background: var(--accent-primary);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 6px var(--accent-primary);
+}
