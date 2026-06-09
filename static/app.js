@@ -385,15 +385,20 @@ function renderTable() {
 
     stockTableBody.innerHTML = watchlist
         .map(
-            (stock) => {
+            (stock, idx) => {
                 const price = latestPrices[stock.symbol];
                 const { changeText, changeClass, arrow } = calcChange(
                     price,
                     stock.entryPrice
                 );
+                const isFirst = idx === 0;
+                const isLast = idx === watchlist.length - 1;
 
                 return `
-            <tr data-symbol="${stock.symbol}" class="row-enter">
+            <tr data-symbol="${stock.symbol}" class="row-enter" draggable="true">
+                <td class="cell-drag">
+                    <span class="drag-handle" title="拖曳以排序">☰</span>
+                </td>
                 <td>
                     <span class="cell-symbol">
                         ${escapeHtml(stock.symbol)}
@@ -411,6 +416,8 @@ function renderTable() {
                 </td>
                 <td>
                     <span class="cell-actions">
+                        <button class="btn-icon btn-sort" onclick="moveStock('${stock.symbol}', -1)" ${isFirst ? "disabled style='opacity: 0.3; cursor: not-allowed;'" : ""} title="上移">▲</button>
+                        <button class="btn-icon btn-sort" onclick="moveStock('${stock.symbol}', 1)" ${isLast ? "disabled style='opacity: 0.3; cursor: not-allowed;'" : ""} title="下移">▼</button>
                         <button class="btn-icon" onclick="openEditModal('${stock.symbol}')" title="編輯">✏️</button>
                         <button class="btn-icon btn-delete" onclick="deleteStock('${stock.symbol}')" title="刪除">🗑️</button>
                     </span>
@@ -420,6 +427,9 @@ function renderTable() {
             }
         )
         .join("");
+
+    // 綁定拖曳相關事件到新生成的表格行上
+    bindDragEvents();
 }
 
 function updatePricesInTable(prevPrices) {
@@ -580,10 +590,112 @@ refreshInterval.addEventListener("change", () => {
     startRefreshTimer();
 });
 
+// ========== Reordering ==========
+function bindDragEvents() {
+    const rows = stockTableBody.querySelectorAll("tr");
+    rows.forEach(row => {
+        row.addEventListener("dragstart", (e) => {
+            row.classList.add("dragging");
+            e.dataTransfer.setData("text/plain", row.dataset.symbol);
+        });
+        row.addEventListener("dragend", () => {
+            row.classList.remove("dragging");
+            saveNewOrder();
+        });
+    });
+}
+
+function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll("tr:not(.dragging)")];
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+async function saveNewOrder() {
+    const rows = [...stockTableBody.querySelectorAll("tr")];
+    const symbols = rows.map(row => row.dataset.symbol);
+    
+    // 同步更新本地的 watchlist 陣列順序
+    const orderedWatchlist = [];
+    symbols.forEach(symbol => {
+        const item = watchlist.find(s => s.symbol === symbol);
+        if (item) orderedWatchlist.push(item);
+    });
+    watchlist = orderedWatchlist;
+    
+    // 重新渲染表格以更新上/下按鈕的禁用狀態 (idx == 0 / max)
+    renderTable();
+
+    try {
+        const res = await fetch(`${API_BASE}/api/watchlist/reorder`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ symbols }),
+        });
+        const data = await res.json();
+        if (!data.success) {
+            console.error("重新排序失敗:", data.error);
+        }
+    } catch (err) {
+        console.error("重新排序請求出錯:", err);
+    }
+}
+
+async function moveStock(symbol, direction) {
+    const index = watchlist.findIndex(s => s.symbol === symbol);
+    if (index === -1) return;
+    
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= watchlist.length) return;
+    
+    // 陣列換位
+    const temp = watchlist[index];
+    watchlist[index] = watchlist[targetIndex];
+    watchlist[targetIndex] = temp;
+    
+    renderTable();
+    
+    const symbols = watchlist.map(s => s.symbol);
+    try {
+        const res = await fetch(`${API_BASE}/api/watchlist/reorder`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ symbols }),
+        });
+        const data = await res.json();
+        if (!data.success) {
+            console.error("交換順序儲存失敗:", data.error);
+        }
+    } catch (err) {
+        console.error("交換順序請求出錯:", err);
+    }
+}
+
 // ========== Init ==========
 async function init() {
     await loadWatchlist();
     renderTable();
+
+    // 綁定全域的 dragover 到 tbody 上
+    stockTableBody.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        const draggingRow = stockTableBody.querySelector(".dragging");
+        if (!draggingRow) return;
+        
+        const afterElement = getDragAfterElement(stockTableBody, e.clientY);
+        if (afterElement == null) {
+            stockTableBody.appendChild(draggingRow);
+        } else {
+            stockTableBody.insertBefore(draggingRow, afterElement);
+        }
+    });
 
     // Fetch prices immediately if watchlist is not empty
     if (watchlist.length > 0) {

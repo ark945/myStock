@@ -126,6 +126,10 @@ class WatchlistUpdate(BaseModel):
     entry_price: Optional[float] = None
 
 
+class WatchlistReorder(BaseModel):
+    symbols: list[str]
+
+
 # ==========================================
 # Stock APIs
 # ==========================================
@@ -158,7 +162,7 @@ async def api_quote(
 async def api_get_watchlist():
     """取得所有追蹤清單"""
     try:
-        response = supabase.table("watchlist").select("*").order("id").execute()
+        response = supabase.table("watchlist").select("*").order("sort_order").order("id").execute()
         return {"success": True, "data": response.data}
     except Exception as e:
         print(f"Supabase Get Watchlist Error: {e}")
@@ -169,17 +173,42 @@ async def api_get_watchlist():
 async def api_add_watchlist(item: WatchlistItem):
     """加入股票到追蹤清單"""
     try:
+        # 查詢當前最大 sort_order
+        max_order = 0
+        try:
+            response = supabase.table("watchlist").select("sort_order").order("sort_order", descending=True).limit(1).execute()
+            if response.data:
+                max_order = response.data[0].get("sort_order") or 0
+        except Exception as order_e:
+            print(f"查詢 max sort_order 失敗 (欄位可能尚未建立): {order_e}")
+
         data = {
             "symbol": item.symbol,
             "name": item.name,
             "market": item.market,
             "entry_date": item.entry_date,
             "entry_price": item.entry_price,
+            "sort_order": max_order + 1,
         }
         supabase.table("watchlist").upsert(data, on_conflict="symbol").execute()
         return {"success": True}
     except Exception as e:
         print(f"Supabase Add Watchlist Error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.put("/api/watchlist/reorder")
+async def api_reorder_watchlist(reorder: WatchlistReorder):
+    """重新排序追蹤清單"""
+    try:
+        for index, symbol in enumerate(reorder.symbols):
+            supabase.table("watchlist") \
+                .update({"sort_order": index + 1}) \
+                .eq("symbol", symbol) \
+                .execute()
+        return {"success": True}
+    except Exception as e:
+        print(f"Supabase Reorder Watchlist Error: {e}")
         return {"success": False, "error": str(e)}
 
 

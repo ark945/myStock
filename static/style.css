@@ -1033,4 +1033,60 @@ body {
     .table-header-bar h2 {
         font-size: 16px;
     }
+
+    /* 手機版隱藏拖曳欄位，以箭頭按鈕操作即可 */
+    .col-drag,
+    .cell-drag {
+        display: none;
+    }
+}
+
+/* ============================================
+   Watchlist Reordering (拖曳與排序樣式)
+   ============================================ */
+.col-drag {
+    width: 44px;
+    text-align: center;
+}
+
+.cell-drag {
+    text-align: center;
+    width: 44px;
+    padding: 16px 0 !important;
+}
+
+.drag-handle {
+    cursor: grab;
+    user-select: none;
+    color: var(--text-muted);
+    font-size: 18px;
+    display: inline-block;
+    padding: 4px 8px;
+    transition: color var(--transition-fast), transform var(--transition-fast);
+}
+
+.drag-handle:hover {
+    color: var(--accent-primary);
+    transform: scale(1.1);
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+tr.dragging {
+    opacity: 0.4;
+    background: rgba(129, 140, 248, 0.08) !important;
+    border: 1px dashed var(--accent-primary);
+}
+
+/* 排序箭頭按鈕微調 */
+.btn-sort {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.btn-sort:hover:not(:disabled) {
+    color: var(--accent-primary);
+    border-color: var(--accent-primary);
 }
