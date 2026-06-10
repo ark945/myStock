@@ -136,6 +136,7 @@ def get_quotes(symbols: list[str]) -> list[dict]:
     # --- 獲取台股的技術指標 (從 yfinance) ---
     tw_metrics = {}
     if tw_symbols:
+        yf_tw_mapping = {}  # {yf_sym: sym}
         for sym in tw_symbols:
             if sym in twstock.codes:
                 info = twstock.codes[sym]
@@ -143,20 +144,26 @@ def get_quotes(symbols: list[str]) -> list[dict]:
                 yf_sym = f"{sym}{suffix}"
             else:
                 yf_sym = f"{sym}.TW"
-            
-            try:
-                ticker = yf.Ticker(yf_sym)
-                inf = ticker.info
-                if inf:
-                    tw_metrics[sym] = {
-                        "prev_close": _safe_float(inf.get("previousClose") or inf.get("regularMarketPreviousClose")),
-                        "fifty_two_week_low": _safe_float(inf.get("fiftyTwoWeekLow")),
-                        "fifty_two_week_high": _safe_float(inf.get("fiftyTwoWeekHigh")),
-                        "ma_50": _safe_float(inf.get("fiftyDayAverage")),
-                        "ma_200": _safe_float(inf.get("twoHundredDayAverage")),
-                    }
-            except Exception as e:
-                print(f"取得台股 {sym} 技術指標失敗: {e}")
+            yf_tw_mapping[yf_sym] = sym
+
+        try:
+            tickers = yf.Tickers(" ".join(yf_tw_mapping.keys()))
+            for yf_sym, sym in yf_tw_mapping.items():
+                try:
+                    ticker = tickers.tickers.get(yf_sym.upper()) or tickers.tickers.get(yf_sym)
+                    if ticker:
+                        fast = ticker.fast_info
+                        tw_metrics[sym] = {
+                            "prev_close": _safe_float(fast.get("previousClose") or fast.get("regularMarketPreviousClose")),
+                            "fifty_two_week_low": _safe_float(fast.get("yearLow")),
+                            "fifty_two_week_high": _safe_float(fast.get("yearHigh")),
+                            "ma_50": _safe_float(fast.get("fiftyDayAverage")),
+                            "ma_200": _safe_float(fast.get("twoHundredDayAverage")),
+                        }
+                except Exception as e:
+                    print(f"取得台股 {sym} 技術指標失敗: {e}")
+        except Exception as e:
+            print(f"批次取得台股技術指標失敗: {e}")
 
     # --- 台股即時報價與 Fallback ---
     for sym in tw_symbols:
