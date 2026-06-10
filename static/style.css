@@ -16,8 +16,8 @@
     --text-secondary: #94a3b8;
     --text-muted: #64748b;
 
-    --accent-primary: #818cf8;
-    --accent-primary-glow: rgba(129, 140, 248, 0.3);
+    --accent-primary: #a5b4fc;
+    --accent-primary-glow: rgba(165, 180, 252, 0.3);
     --accent-secondary: #a78bfa;
 
     /* 台股慣例: 紅漲綠跌 */
@@ -31,11 +31,11 @@
 
     /* Borders */
     --border-subtle: rgba(255, 255, 255, 0.06);
-    --border-accent: rgba(129, 140, 248, 0.3);
+    --border-accent: rgba(165, 180, 252, 0.3);
 
     /* Shadows */
     --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.4);
-    --shadow-glow: 0 0 40px rgba(129, 140, 248, 0.15);
+    --shadow-glow: 0 0 40px rgba(165, 180, 252, 0.15);
 
     /* Typography */
     --font-sans: 'Inter', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
