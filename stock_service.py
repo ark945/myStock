@@ -4,6 +4,8 @@ stock_service.py — 股票查詢服務
 """
 
 import re
+import urllib.request
+import json
 import twstock
 import yfinance as yf
 from typing import Optional
@@ -87,7 +89,51 @@ def get_quotes(symbols: list[str]) -> list[dict]:
     tw_symbols = [s for s in symbols if _is_tw_stock(s)]
     us_symbols = [s for s in symbols if not _is_tw_stock(s)]
 
-    # --- 獲取台股的技術指標與昨日收盤價 (從 yfinance) ---
+    # --- 獲取台股即時報價與昨日收盤價 (從 TWSE 官方 API) ---
+    tw_realtime_data = {}
+    if tw_symbols:
+        ex_ch_list = []
+        for sym in tw_symbols:
+            market_type = "tse"
+            if sym in twstock.codes:
+                info_code = twstock.codes[sym]
+                if info_code.market == '上櫃':
+                    market_type = "otc"
+            ex_ch_list.append(f"{market_type}_{sym}.tw")
+        
+        try:
+            url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={'|'.join(ex_ch_list)}"
+            req = urllib.request.Request(
+                url, 
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+            )
+            with urllib.request.urlopen(req, timeout=5) as response:
+                html = response.read().decode('utf-8')
+                data = json.loads(html)
+                msg = data.get("msgArray", [])
+                for m in msg:
+                    sym = m.get("c")
+                    name = m.get("n")
+                    prev_close = _safe_float(m.get("y"))
+                    
+                    latest_price_str = m.get("z", "")
+                    if not latest_price_str or latest_price_str == "-":
+                        best_bids = m.get("b", "").split("_")
+                        latest_price_str = best_bids[0] if best_bids and best_bids[0] else ""
+                    
+                    price = _safe_float(latest_price_str)
+                    timestamp = f"{m.get('d', '')} {m.get('%', '')}"
+                    tw_realtime_data[sym] = {
+                        "name": name,
+                        "price": price,
+                        "prev_close": prev_close,
+                        "timestamp": timestamp,
+                        "success": price is not None
+                    }
+        except Exception as e:
+            print(f"TWSE API 批次查詢失敗: {e}")
+
+    # --- 獲取台股的技術指標 (從 yfinance) ---
     tw_metrics = {}
     if tw_symbols:
         for sym in tw_symbols:
@@ -112,62 +158,73 @@ def get_quotes(symbols: list[str]) -> list[dict]:
             except Exception as e:
                 print(f"取得台股 {sym} 技術指標失敗: {e}")
 
-    # --- 台股即時報價 ---
+    # --- 台股即時報價與 Fallback ---
     for sym in tw_symbols:
         try:
-            data = twstock.realtime.get(sym)
-            price = None
-            name = ""
-            timestamp = ""
-            success = False
-            error = None
-
-            if data and data.get("success"):
-                info = data.get("info", {})
-                realtime = data.get("realtime", {})
-                name = info.get("name", "")
-                timestamp = info.get("time", "")
-
-                # 取得最新成交價
-                best_bid_price = realtime.get("latest_trade_price", "")
-                if not best_bid_price or best_bid_price == "-":
-                    # fallback: 使用最佳買價
-                    best_bid_prices = realtime.get("best_bid_price")
-                    if isinstance(best_bid_prices, list) and len(best_bid_prices) > 0:
-                        best_bid_price = best_bid_prices[0]
-                    else:
-                        best_bid_price = ""
-
-                price = _safe_float(best_bid_price)
-                if price is not None:
-                    success = True
-                else:
-                    error = "即時成交價不可用（可能非交易時段）"
+            # 優先使用 TWSE 官方 API 資料
+            rt = tw_realtime_data.get(sym)
+            if rt and rt.get("success"):
+                price = rt["price"]
+                prev_close = rt["prev_close"]
+                name = rt["name"]
+                timestamp = rt["timestamp"]
+                success = True
+                error = None
             else:
-                error = data.get("rtmessage", "查詢失敗") if data else "無資料"
+                # Fallback to twstock
+                data = twstock.realtime.get(sym)
+                price = None
+                name = ""
+                timestamp = ""
+                success = False
+                error = None
+                prev_close = None
 
-            # --- Fallback: 若即時價格不可用，嘗試取得歷史最後收盤價 ---
-            if price is None:
-                try:
-                    s = twstock.Stock(sym)
-                    if s and s.close and len(s.close) > 0:
-                        price = _safe_float(s.close[-1])
-                        if price is not None:
-                            success = True
-                            error = None
-                            # 若 realtime 未取得名稱，試著從 twstock.codes 取得
-                            if not name and sym in twstock.codes:
-                                name = twstock.codes[sym].name
-                except Exception as ex:
-                    if not error:
-                        error = f"歷史價格獲取失敗: {str(ex)}"
+                if data and data.get("success"):
+                    info = data.get("info", {})
+                    realtime = data.get("realtime", {})
+                    name = info.get("name", "")
+                    timestamp = info.get("time", "")
+
+                    best_bid_price = realtime.get("latest_trade_price", "")
+                    if not best_bid_price or best_bid_price == "-":
+                        best_bid_prices = realtime.get("best_bid_price")
+                        if isinstance(best_bid_prices, list) and len(best_bid_prices) > 0:
+                            best_bid_price = best_bid_prices[0]
+                        else:
+                            best_bid_price = ""
+
+                    price = _safe_float(best_bid_price)
+                    if price is not None:
+                        success = True
+                    else:
+                        error = "即時成交價不可用（可能非交易時段）"
+                else:
+                    error = data.get("rtmessage", "查詢失敗") if data else "無資料"
+
+                if price is None:
+                    try:
+                        s = twstock.Stock(sym)
+                        if s and s.close and len(s.close) > 0:
+                            price = _safe_float(s.close[-1])
+                            if price is not None:
+                                success = True
+                                error = None
+                                if not name and sym in twstock.codes:
+                                    name = twstock.codes[sym].name
+                    except Exception as ex:
+                        if not error:
+                            error = f"歷史價格獲取失敗: {str(ex)}"
 
             metrics = tw_metrics.get(sym, {})
+            # 昨收優先順序：TWSE 官方 API > yfinance
+            final_prev_close = prev_close if prev_close is not None else metrics.get("prev_close")
+
             results.append({
                 "symbol": sym,
                 "name": name,
                 "price": price,
-                "prev_close": metrics.get("prev_close"),
+                "prev_close": final_prev_close,
                 "fifty_two_week_low": metrics.get("fifty_two_week_low"),
                 "fifty_two_week_high": metrics.get("fifty_two_week_high"),
                 "ma_50": metrics.get("ma_50"),
@@ -179,7 +236,7 @@ def get_quotes(symbols: list[str]) -> list[dict]:
             })
 
         except Exception as e:
-            # 發生異常，也嘗試用 Stock 作為最後的 fallback
+            # 異常 Fallback
             price = None
             name = ""
             try:
@@ -192,11 +249,13 @@ def get_quotes(symbols: list[str]) -> list[dict]:
                 pass
 
             metrics = tw_metrics.get(sym, {})
+            final_prev_close = prev_close if prev_close is not None else metrics.get("prev_close")
+
             results.append({
                 "symbol": sym,
                 "name": name,
                 "price": price,
-                "prev_close": metrics.get("prev_close"),
+                "prev_close": final_prev_close,
                 "fifty_two_week_low": metrics.get("fifty_two_week_low"),
                 "fifty_two_week_high": metrics.get("fifty_two_week_high"),
                 "ma_50": metrics.get("ma_50"),
