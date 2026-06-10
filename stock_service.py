@@ -79,10 +79,10 @@ def search_stock(keyword: str, max_results: int = 10) -> list[dict]:
     return results[:max_results]
 
 
-def get_quotes(symbols: list[str]) -> list[dict]:
+def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dict]:
     """
     批次取得即時報價。
-    回傳每支股票的最新價格與漲跌資訊。
+    回傳每支股票的最新價格、技術指標與基本面欄位。
     """
     results = []
 
@@ -133,7 +133,7 @@ def get_quotes(symbols: list[str]) -> list[dict]:
         except Exception as e:
             print(f"TWSE API 批次查詢失敗: {e}")
 
-    # --- 獲取台股的技術指標 (從 yfinance) ---
+    # --- 獲取台股的技術指標與基本面 (從 yfinance) ---
     tw_metrics = {}
     if tw_symbols:
         yf_tw_mapping = {}  # {yf_sym: sym}
@@ -153,17 +153,36 @@ def get_quotes(symbols: list[str]) -> list[dict]:
                     ticker = tickers.tickers.get(yf_sym.upper()) or tickers.tickers.get(yf_sym)
                     if ticker:
                         fast = ticker.fast_info
+                        pe_ratio = None
+                        dividend_yield = None
+                        beta = None
+                        current_ratio = None
+                        
+                        if fetch_fundamentals:
+                            try:
+                                inf = ticker.info
+                                pe_ratio = inf.get("trailingPE") or inf.get("forwardPE")
+                                dividend_yield = inf.get("dividendYield")
+                                beta = inf.get("beta")
+                                current_ratio = inf.get("currentRatio")
+                            except Exception as fe:
+                                print(f"取得台股 {sym} 基本面失敗: {fe}")
+                                
                         tw_metrics[sym] = {
                             "prev_close": _safe_float(fast.get("previousClose") or fast.get("regularMarketPreviousClose")),
                             "fifty_two_week_low": _safe_float(fast.get("yearLow")),
                             "fifty_two_week_high": _safe_float(fast.get("yearHigh")),
                             "ma_50": _safe_float(fast.get("fiftyDayAverage")),
                             "ma_200": _safe_float(fast.get("twoHundredDayAverage")),
+                            "pe_ratio": _safe_float(pe_ratio),
+                            "dividend_yield": _safe_float(dividend_yield),
+                            "beta": _safe_float(beta),
+                            "current_ratio": _safe_float(current_ratio),
                         }
                 except Exception as e:
-                    print(f"取得台股 {sym} 技術指標失敗: {e}")
+                    print(f"取得台股 {sym} 技術指標/基本面失敗: {e}")
         except Exception as e:
-            print(f"批次取得台股技術指標失敗: {e}")
+            print(f"批次取得台股指標失敗: {e}")
 
     # --- 台股即時報價與 Fallback ---
     for sym in tw_symbols:
@@ -236,6 +255,10 @@ def get_quotes(symbols: list[str]) -> list[dict]:
                 "fifty_two_week_high": metrics.get("fifty_two_week_high"),
                 "ma_50": metrics.get("ma_50"),
                 "ma_200": metrics.get("ma_200"),
+                "pe_ratio": metrics.get("pe_ratio"),
+                "dividend_yield": metrics.get("dividend_yield"),
+                "beta": metrics.get("beta"),
+                "current_ratio": metrics.get("current_ratio"),
                 "market": "TW",
                 "timestamp": timestamp,
                 "success": success,
@@ -267,13 +290,17 @@ def get_quotes(symbols: list[str]) -> list[dict]:
                 "fifty_two_week_high": metrics.get("fifty_two_week_high"),
                 "ma_50": metrics.get("ma_50"),
                 "ma_200": metrics.get("ma_200"),
+                "pe_ratio": metrics.get("pe_ratio"),
+                "dividend_yield": metrics.get("dividend_yield"),
+                "beta": metrics.get("beta"),
+                "current_ratio": metrics.get("current_ratio"),
                 "market": "TW",
                 "timestamp": "",
                 "success": price is not None,
                 **({"error": str(e)} if price is None else {})
             })
 
-    # --- 美股即時報價 ---
+    # --- 美股即時報價與基本面 ---
     if us_symbols:
         try:
             tickers = yf.Tickers(" ".join(us_symbols))
@@ -289,6 +316,21 @@ def get_quotes(symbols: list[str]) -> list[dict]:
                         ma_50 = fast.get("fiftyDayAverage")
                         ma_200 = fast.get("twoHundredDayAverage")
 
+                        pe_ratio = None
+                        dividend_yield = None
+                        beta = None
+                        current_ratio = None
+                        
+                        if fetch_fundamentals:
+                            try:
+                                inf = ticker.info
+                                pe_ratio = inf.get("trailingPE") or inf.get("forwardPE")
+                                dividend_yield = inf.get("dividendYield")
+                                beta = inf.get("beta")
+                                current_ratio = inf.get("currentRatio")
+                            except Exception as fe:
+                                print(f"取得美股 {sym} 基本面失敗: {fe}")
+
                         results.append({
                             "symbol": sym.upper(),
                             "name": "",  # fast_info 不含名稱，前端已有快取
@@ -298,6 +340,10 @@ def get_quotes(symbols: list[str]) -> list[dict]:
                             "fifty_two_week_high": round(fifty_two_week_high, 2) if fifty_two_week_high else None,
                             "ma_50": round(ma_50, 2) if ma_50 else None,
                             "ma_200": round(ma_200, 2) if ma_200 else None,
+                            "pe_ratio": round(pe_ratio, 2) if pe_ratio else None,
+                            "dividend_yield": round(dividend_yield, 2) if dividend_yield else None,
+                            "beta": round(beta, 3) if beta else None,
+                            "current_ratio": round(current_ratio, 2) if current_ratio else None,
                             "market": "US",
                             "timestamp": "",
                             "success": price is not None,

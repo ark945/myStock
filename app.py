@@ -51,21 +51,33 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # ==========================================
 # Background Price Updater
 # ==========================================
+loop_count = 0
+
 async def price_updater_loop():
-    """背景定時更新股價的工作"""
+    global loop_count
     # 延遲 5 秒啟動，讓 FastAPI 完成初始化
     await asyncio.sleep(5)
     while True:
         try:
-            # A. 從 Supabase 取得目前所有正在追蹤的股票代號
-            response = supabase.table("watchlist").select("symbol").execute()
-            symbols = [row["symbol"] for row in response.data] if response.data else []
+            # A. 從 Supabase 取得目前所有正在追蹤的股票
+            response = supabase.table("watchlist").select("*").execute()
+            rows = response.data if response.data else []
+            symbols = [row["symbol"] for row in rows]
             
             if symbols:
-                # B. 呼叫 get_quotes 批次抓取最新價格
-                quotes = get_quotes(symbols)
+                # 檢查是否有任何股票的基本面欄位仍為空
+                has_empty_fundamentals = any(
+                    r.get("pe_ratio") is None and r.get("dividend_yield") is None and r.get("beta") is None
+                    for r in rows
+                )
                 
-                # C. 將更新後的價格寫回 Supabase
+                # 每 24 小時（計數器 1440 輪）或有新股未初始化時，抓取完整基本面
+                do_fetch_fundamentals = (loop_count % 1440 == 0) or has_empty_fundamentals
+                
+                # B. 呼叫 get_quotes 批次抓取
+                quotes = get_quotes(symbols, fetch_fundamentals=do_fetch_fundamentals)
+                
+                # C. 將更新後的價格與指標寫回 Supabase
                 success_count = 0
                 for q in quotes:
                     if q.get("success") and q.get("price") is not None:
@@ -84,6 +96,17 @@ async def price_updater_loop():
                                 update_data["ma_50"] = q["ma_50"]
                             if q.get("ma_200") is not None:
                                 update_data["ma_200"] = q["ma_200"]
+                                
+                            # 只有在 fetch_fundamentals 為 True 且獲取到資料時才寫入基本面
+                            if do_fetch_fundamentals:
+                                if q.get("pe_ratio") is not None:
+                                    update_data["pe_ratio"] = q["pe_ratio"]
+                                if q.get("dividend_yield") is not None:
+                                    update_data["dividend_yield"] = q["dividend_yield"]
+                                if q.get("beta") is not None:
+                                    update_data["beta"] = q["beta"]
+                                if q.get("current_ratio") is not None:
+                                    update_data["current_ratio"] = q["current_ratio"]
 
                             supabase.table("watchlist") \
                                 .update(update_data) \
@@ -93,7 +116,8 @@ async def price_updater_loop():
                         except Exception as inner_e:
                             print(f"寫入單筆股價 {q['symbol']} 失敗: {inner_e}")
                             
-                print(f"背景更新成功: 已完成 {success_count}/{len(symbols)} 檔股票價格更新")
+                print(f"背景更新成功: 已完成 {success_count}/{len(symbols)} 檔股票更新 (基本面更新={do_fetch_fundamentals})")
+                loop_count += 1
         except Exception as e:
             print(f"背景價格更新程序出錯: {e}")
             
@@ -202,6 +226,36 @@ async def api_add_watchlist(item: WatchlistItem):
             "entry_price": item.entry_price,
             "sort_order": max_order + 1,
         }
+
+        # 新增股票時，同步抓取最新價格與技術/基本面歷史資料
+        try:
+            quotes = get_quotes([item.symbol], fetch_fundamentals=True)
+            if quotes:
+                q = quotes[0]
+                if q.get("success") and q.get("price") is not None:
+                    data["current_price"] = q["price"]
+                    data["price_updated_at"] = "now()"
+                    if q.get("prev_close") is not None:
+                        data["yesterday_close"] = q["prev_close"]
+                    if q.get("fifty_two_week_low") is not None:
+                        data["fifty_two_week_low"] = q["fifty_two_week_low"]
+                    if q.get("fifty_two_week_high") is not None:
+                        data["fifty_two_week_high"] = q["fifty_two_week_high"]
+                    if q.get("ma_50") is not None:
+                        data["ma_50"] = q["ma_50"]
+                    if q.get("ma_200") is not None:
+                        data["ma_200"] = q["ma_200"]
+                    if q.get("pe_ratio") is not None:
+                        data["pe_ratio"] = q["pe_ratio"]
+                    if q.get("dividend_yield") is not None:
+                        data["dividend_yield"] = q["dividend_yield"]
+                    if q.get("beta") is not None:
+                        data["beta"] = q["beta"]
+                    if q.get("current_ratio") is not None:
+                        data["current_ratio"] = q["current_ratio"]
+        except Exception as e:
+            print(f"預先抓取新建倉股票 {item.symbol} 歷史與基本面指標失敗: {e}")
+
         supabase.table("watchlist").upsert(data, on_conflict="symbol").execute()
         return {"success": True}
     except Exception as e:

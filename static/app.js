@@ -72,6 +72,10 @@ async function loadWatchlist() {
                     fiftyTwoWeekHigh: item.fifty_two_week_high != null ? parseFloat(item.fifty_two_week_high) : null,
                     ma50: item.ma_50 != null ? parseFloat(item.ma_50) : null,
                     ma200: item.ma_200 != null ? parseFloat(item.ma_200) : null,
+                    peRatio: item.pe_ratio != null ? parseFloat(item.pe_ratio) : null,
+                    dividendYield: item.dividend_yield != null ? parseFloat(item.dividend_yield) : null,
+                    beta: item.beta != null ? parseFloat(item.beta) : null,
+                    currentRatio: item.current_ratio != null ? parseFloat(item.current_ratio) : null,
                 };
             });
         } else {
@@ -372,6 +376,10 @@ async function fetchQuotes() {
                     fiftyTwoWeekHigh: item.fifty_two_week_high != null ? parseFloat(item.fifty_two_week_high) : null,
                     ma50: item.ma_50 != null ? parseFloat(item.ma_50) : null,
                     ma200: item.ma_200 != null ? parseFloat(item.ma_200) : null,
+                    peRatio: item.pe_ratio != null ? parseFloat(item.pe_ratio) : null,
+                    dividendYield: item.dividend_yield != null ? parseFloat(item.dividend_yield) : null,
+                    beta: item.beta != null ? parseFloat(item.beta) : null,
+                    currentRatio: item.current_ratio != null ? parseFloat(item.current_ratio) : null,
                 };
             });
 
@@ -427,7 +435,7 @@ function renderTable() {
                         </span>
                         <span class="cell-subtext cell-name" title="${escapeHtml(stock.name)}">${escapeHtml(stock.name)}</span>
                         <div class="trend-badge-container" data-trend-cell="${stock.symbol}">
-                            ${getTrendBadge(price, stock.ma50, stock.ma200)}
+                            ${getHealthBadge(price, stock)}
                         </div>
                     </div>
                 </td>
@@ -532,7 +540,7 @@ function updatePricesInTable(prevPrices) {
         }
 
         if (trendCell) {
-            trendCell.innerHTML = getTrendBadge(price, stock.ma50, stock.ma200);
+            trendCell.innerHTML = getHealthBadge(price, stock);
         }
 
         if (rangeCell) {
@@ -639,6 +647,113 @@ function getTrendBadge(price, ma50, ma200) {
     } else {
         return `<span class="trend-badge neutral" title="區間整理 (價格或均線糾纏)">🟡 整理</span>`;
     }
+}
+
+function getHealthBadge(price, stock) {
+    if (price == null) {
+        return `<span class="health-badge loading">體檢中...</span>`;
+    }
+
+    let score = 0;
+    const details = [];
+
+    // 1. 均線趨勢 (Trend)
+    const isBullish = stock.ma50 != null && stock.ma200 != null && price > stock.ma50 && stock.ma50 > stock.ma200;
+    if (isBullish) {
+        score++;
+        details.push({ name: "均線趨勢 (多頭排列)", ok: true, value: "多頭" });
+    } else {
+        const isBearish = stock.ma50 != null && stock.ma200 != null && price < stock.ma50 && stock.ma50 < stock.ma200;
+        const trendVal = isBearish ? "空頭" : "整理";
+        details.push({ name: "均線趨勢 (多頭排列)", ok: false, value: trendVal });
+    }
+
+    // 2. 52週位置 (Midpoint buying check)
+    if (stock.fiftyTwoWeekLow != null && stock.fiftyTwoWeekHigh != null && stock.fiftyTwoWeekHigh > stock.fiftyTwoWeekLow) {
+        const percent = ((price - stock.fiftyTwoWeekLow) / (stock.fiftyTwoWeekHigh - stock.fiftyTwoWeekLow)) * 100;
+        const isLowPosition = percent < 85;
+        if (isLowPosition) {
+            score++;
+        }
+        details.push({ name: "股價位置 (低於高點 85%)", ok: isLowPosition, value: `${percent.toFixed(0)}%` });
+    } else {
+        details.push({ name: "股價位置 (低於高檔 85%)", ok: false, value: "無資料" });
+    }
+
+    // 3. 估值合理性 (PE / Dividend Yield)
+    let isValuationOk = false;
+    let valStr = "無資料";
+    if (stock.peRatio != null || stock.dividendYield != null) {
+        const peOk = stock.peRatio != null && stock.peRatio > 0 && stock.peRatio < 25;
+        const yieldOk = stock.dividendYield != null && stock.dividendYield > 3.0;
+        isValuationOk = peOk || yieldOk;
+        
+        const peStr = stock.peRatio != null ? `PE: ${stock.peRatio.toFixed(1)}x` : "";
+        const yldStr = stock.dividendYield != null ? `殖利率: ${stock.dividendYield.toFixed(1)}%` : "";
+        valStr = [peStr, yldStr].filter(Boolean).join(" / ");
+        if (isValuationOk) {
+            score++;
+        }
+    }
+    details.push({ name: "估值評估 (PE<25 或 殖利率>3%)", ok: isValuationOk, value: valStr });
+
+    // 4. 財務安全 (Current Ratio)
+    if (stock.currentRatio != null) {
+        const isCurrentRatioOk = stock.currentRatio > 1.20;
+        if (isCurrentRatioOk) {
+            score++;
+        }
+        details.push({ name: "流動比率 (短期償債力 > 120%)", ok: isCurrentRatioOk, value: `${(stock.currentRatio * 100).toFixed(0)}%` });
+    } else {
+        details.push({ name: "流動比率 (短期償債力 > 120%)", ok: false, value: "無資料" });
+    }
+
+    // 5. 市場風險 (Beta coefficient)
+    if (stock.beta != null) {
+        const isBetaOk = stock.beta < 1.30;
+        if (isBetaOk) {
+            score++;
+        }
+        details.push({ name: "市場風險 (Beta 係數 < 1.3)", ok: isBetaOk, value: stock.beta.toFixed(2) });
+    } else {
+        details.push({ name: "市場風險 (Beta 係數 < 1.3)", ok: false, value: "無資料" });
+    }
+
+    // Class selection
+    let badgeClass = "neutral";
+    let statusText = "調整";
+    if (score >= 4) {
+        badgeClass = "bullish";
+        statusText = "健康";
+    } else if (score <= 2) {
+        badgeClass = "bearish";
+        statusText = "警示";
+    }
+
+    const detailHtml = details
+        .map(
+            (d) => `
+        <div class="tooltip-item ${d.ok ? "ok" : "fail"}">
+            <span class="tooltip-status-icon">${d.ok ? "✓" : "✗"}</span>
+            <span class="tooltip-name">${d.name}</span>
+            <span class="tooltip-value">${d.value}</span>
+        </div>
+    `
+        )
+        .join("");
+
+    return `
+        <div class="health-badge-wrapper">
+            <span class="health-badge ${badgeClass}">${statusText} ${score}/5</span>
+            <div class="health-tooltip">
+                <div class="tooltip-title">${escapeHtml(stock.name || stock.symbol)} 體檢報告</div>
+                <div class="tooltip-divider"></div>
+                <div class="tooltip-content">
+                    ${detailHtml}
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 function getFiftyTwoWeekBar(price, low, high, market) {

@@ -1124,7 +1124,12 @@ tr.dragging {
     display: flex;
 }
 
-.trend-badge {
+.health-badge-wrapper {
+    position: relative;
+    display: inline-flex;
+}
+
+.health-badge {
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -1133,24 +1138,141 @@ tr.dragging {
     font-size: 11px;
     font-weight: 600;
     line-height: 1.2;
+    cursor: help;
+    transition: all var(--transition-fast);
 }
 
-.trend-badge.bullish {
-    background: var(--color-up-bg);
-    border: 1px solid rgba(239, 68, 68, 0.2);
-    color: var(--color-up);
-}
-
-.trend-badge.bearish {
+.health-badge.bullish {
     background: var(--color-down-bg);
     border: 1px solid rgba(34, 197, 94, 0.2);
     color: var(--color-down);
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.1);
 }
 
-.trend-badge.neutral {
+.health-badge.bearish {
+    background: var(--color-up-bg);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: var(--color-up);
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.1);
+}
+
+.health-badge.neutral {
+    background: rgba(234, 179, 8, 0.06);
+    border: 1px solid rgba(234, 179, 8, 0.2);
+    color: #eab308;
+    box-shadow: 0 0 10px rgba(234, 179, 8, 0.05);
+}
+
+.health-badge.loading {
     background: rgba(148, 163, 184, 0.06);
     border: 1px solid rgba(148, 163, 184, 0.15);
     color: var(--text-secondary);
+}
+
+/* Tooltip 本體 */
+.health-tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    transform: translateY(5px);
+    z-index: 200;
+    width: 280px;
+    background: rgba(17, 24, 39, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg), 0 10px 30px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 14px 16px;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition-fast) ease, transform var(--transition-fast) ease, visibility var(--transition-fast);
+}
+
+/* Tooltip 三角形裝飾 */
+.health-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 20px;
+    border-width: 6px;
+    border-style: solid;
+    border-color: rgba(17, 24, 39, 0.95) transparent transparent transparent;
+}
+
+.health-badge-wrapper:hover .health-tooltip {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Tooltip 內容排版 */
+.tooltip-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+.tooltip-divider {
+    height: 1px;
+    background: var(--border-subtle);
+    margin-bottom: 8px;
+}
+
+.tooltip-content {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.tooltip-item {
+    display: flex;
+    align-items: center;
+    font-size: 11px;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.tooltip-item.ok {
+    color: var(--text-primary);
+}
+
+.tooltip-item.fail {
+    color: var(--text-muted);
+}
+
+.tooltip-status-icon {
+    font-weight: 800;
+    font-size: 12px;
+}
+
+.tooltip-item.ok .tooltip-status-icon {
+    color: #22c55e;
+}
+
+.tooltip-item.fail .tooltip-status-icon {
+    color: #ef4444;
+}
+
+.tooltip-name {
+    flex: 1;
+}
+
+.tooltip-value {
+    font-family: var(--font-mono);
+    font-weight: 600;
+}
+
+.tooltip-item.ok .tooltip-value {
+    color: var(--accent-primary);
+}
+
+.tooltip-item.fail .tooltip-value {
+    color: var(--text-muted);
 }
 
 .range-container {
