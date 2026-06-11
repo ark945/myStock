@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=5">
+    <link rel="stylesheet" href="/static/style.css?v=6">
 </head>
 <body>
     <!-- 背景粒子裝飾 -->
@@ -88,6 +88,65 @@
                     <div class="empty-icon">📊</div>
                     <p>尚未追蹤任何股票</p>
                     <p class="empty-hint">使用上方搜尋框加入股票到追蹤清單</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 綜合健康體檢說明 -->
+        <section class="health-legend-section">
+            <div class="legend-card">
+                <div class="legend-title">🩺 綜合健康度體檢評分說明</div>
+                <div class="legend-subtitle">根據中長線技術趨勢與基本面財務體質進行綜合評估，滿足下列五大指標之項目即可獲得 1 分（滿分 5 分）</div>
+                <div class="legend-badges">
+                    <div class="legend-badge-item">
+                        <span class="health-badge bullish">健康 4~5 分</span>
+                        <span class="legend-badge-desc">體質強健、價格趨勢佳，具備良好防守與進攻性。</span>
+                    </div>
+                    <div class="legend-badge-item">
+                        <span class="health-badge neutral">調整 3 分</span>
+                        <span class="legend-badge-desc">中規中矩，可能正處於股價整理期或目前估值稍微偏貴。</span>
+                    </div>
+                    <div class="legend-badge-item">
+                        <span class="health-badge bearish">警示 0~2 分</span>
+                        <span class="legend-badge-desc">趨勢偏空，且可能伴隨估值泡沫或短期債務清償危機，投資風險較高。</span>
+                    </div>
+                </div>
+                <div class="legend-rules-grid">
+                    <div class="rule-item">
+                        <span class="rule-icon">📈</span>
+                        <div class="rule-text">
+                            <strong>均線趨勢</strong>
+                            <span>股價處於多頭通道中 (價格 > 50MA > 200MA)</span>
+                        </div>
+                    </div>
+                    <div class="rule-item">
+                        <span class="rule-icon">🎯</span>
+                        <div class="rule-text">
+                            <strong>52週位置</strong>
+                            <span>避免買在歷史高檔泡沫區 (52週區間位置百分比 < 85%)</span>
+                        </div>
+                    </div>
+                    <div class="rule-item">
+                        <span class="rule-icon">💰</span>
+                        <div class="rule-text">
+                            <strong>合理估值</strong>
+                            <span>避免買在過度高估區間 (PE < 25 或 殖利率 > 3.0%)</span>
+                        </div>
+                    </div>
+                    <div class="rule-item">
+                        <span class="rule-icon">🛡️</span>
+                        <div class="rule-text">
+                            <strong>財務安全</strong>
+                            <span>確保公司短期資金無虞 (流動比率 > 120%)</span>
+                        </div>
+                    </div>
+                    <div class="rule-item">
+                        <span class="rule-icon">⚠️</span>
+                        <div class="rule-text">
+                            <strong>市場風險</strong>
+                            <span>波動相對於大盤適中 (Beta 係數 < 1.3)</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
