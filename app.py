@@ -155,11 +155,13 @@ class WatchlistItem(BaseModel):
     market: str = "TW"
     entry_date: str = ""
     entry_price: Optional[float] = None
+    target_price: Optional[float] = 0.0
 
 
 class WatchlistUpdate(BaseModel):
     entry_date: Optional[str] = None
     entry_price: Optional[float] = None
+    target_price: Optional[float] = None
 
 
 class WatchlistReorder(BaseModel):
@@ -224,6 +226,7 @@ async def api_add_watchlist(item: WatchlistItem):
             "market": item.market,
             "entry_date": item.entry_date,
             "entry_price": item.entry_price,
+            "target_price": item.target_price if item.target_price is not None else 0.0,
             "sort_order": max_order + 1,
         }
 
@@ -287,6 +290,8 @@ async def api_update_watchlist(symbol: str, update: WatchlistUpdate):
             update_data["entry_date"] = update.entry_date
         if update.entry_price is not None:
             update_data["entry_price"] = update.entry_price
+        if update.target_price is not None:
+            update_data["target_price"] = update.target_price
 
         if update_data:
             supabase.table("watchlist").update(update_data).eq("symbol", symbol).execute()

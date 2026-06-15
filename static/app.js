@@ -32,6 +32,7 @@ const modalTitle = document.getElementById("modalTitle");
 const modalStockInfo = document.getElementById("modalStockInfo");
 const entryDate = document.getElementById("entryDate");
 const entryPrice = document.getElementById("entryPrice");
+const targetPrice = document.getElementById("targetPrice");
 const modalClose = document.getElementById("modalClose");
 const modalCancel = document.getElementById("modalCancel");
 const modalConfirm = document.getElementById("modalConfirm");
@@ -42,6 +43,7 @@ const editModalTitle = document.getElementById("editModalTitle");
 const editModalStockInfo = document.getElementById("editModalStockInfo");
 const editEntryDate = document.getElementById("editEntryDate");
 const editEntryPrice = document.getElementById("editEntryPrice");
+const editTargetPrice = document.getElementById("editTargetPrice");
 const editModalClose = document.getElementById("editModalClose");
 const editModalCancel = document.getElementById("editModalCancel");
 const editModalConfirm = document.getElementById("editModalConfirm");
@@ -76,6 +78,7 @@ async function loadWatchlist() {
                     dividendYield: item.dividend_yield != null ? parseFloat(item.dividend_yield) : null,
                     beta: item.beta != null ? parseFloat(item.beta) : null,
                     currentRatio: item.current_ratio != null ? parseFloat(item.current_ratio) : null,
+                    targetPrice: item.target_price != null ? parseFloat(item.target_price) : 0.0,
                 };
             });
         } else {
@@ -99,6 +102,7 @@ async function addToWatchlist(stock) {
                 market: stock.market,
                 entry_date: stock.entryDate,
                 entry_price: stock.entryPrice,
+                target_price: stock.targetPrice != null ? stock.targetPrice : 0.0,
             }),
         });
         const data = await res.json();
@@ -109,7 +113,7 @@ async function addToWatchlist(stock) {
     }
 }
 
-async function updateWatchlistItem(symbol, entryDate, entryPrice) {
+async function updateWatchlistItem(symbol, entryDate, entryPrice, targetPrice) {
     try {
         const res = await fetch(`${API_BASE}/api/watchlist/${encodeURIComponent(symbol)}`, {
             method: "PUT",
@@ -117,6 +121,7 @@ async function updateWatchlistItem(symbol, entryDate, entryPrice) {
             body: JSON.stringify({
                 entry_date: entryDate,
                 entry_price: entryPrice,
+                target_price: targetPrice != null ? targetPrice : 0.0,
             }),
         });
         const data = await res.json();
@@ -229,6 +234,7 @@ function openAddModal(stock) {
     // Default date to today
     entryDate.value = new Date().toISOString().split("T")[0];
     entryPrice.value = "";
+    targetPrice.value = "";
 
     modalOverlay.classList.add("show");
     hideSearchResults();
@@ -251,6 +257,7 @@ async function confirmAdd() {
         market: pendingStock.market,
         entryDate: entryDate.value || "",
         entryPrice: entryPrice.value ? parseFloat(entryPrice.value) : null,
+        targetPrice: targetPrice.value ? parseFloat(targetPrice.value) : 0.0,
     };
 
     // Disable button to prevent double-click
@@ -287,6 +294,7 @@ function openEditModal(symbol) {
 
     editEntryDate.value = stock.entryDate || "";
     editEntryPrice.value = stock.entryPrice || "";
+    editTargetPrice.value = stock.targetPrice != null ? stock.targetPrice : 0;
     editModalOverlay.classList.add("show");
 }
 
@@ -300,11 +308,12 @@ async function confirmEdit() {
 
     const newDate = editEntryDate.value || "";
     const newPrice = editEntryPrice.value ? parseFloat(editEntryPrice.value) : null;
+    const newTargetPrice = editTargetPrice.value ? parseFloat(editTargetPrice.value) : 0.0;
 
     editModalConfirm.disabled = true;
     editModalConfirm.textContent = "儲存中...";
 
-    const success = await updateWatchlistItem(editingSymbol, newDate, newPrice);
+    const success = await updateWatchlistItem(editingSymbol, newDate, newPrice, newTargetPrice);
 
     if (success) {
         closeEditModal();
@@ -380,6 +389,7 @@ async function fetchQuotes() {
                     dividendYield: item.dividend_yield != null ? parseFloat(item.dividend_yield) : null,
                     beta: item.beta != null ? parseFloat(item.beta) : null,
                     currentRatio: item.current_ratio != null ? parseFloat(item.current_ratio) : null,
+                    targetPrice: item.target_price != null ? parseFloat(item.target_price) : 0.0,
                 };
             });
 
@@ -443,6 +453,7 @@ function renderTable() {
                     <div class="cell-composite">
                         <span class="cell-price">${stock.entryPrice != null ? formatPrice(stock.entryPrice, stock.market) : "—"}</span>
                         <span class="cell-subtext">${stock.entryDate || "—"}</span>
+                        <span class="cell-subtext target-price-text" data-target-price-cell="${stock.symbol}">目標: ${formatPrice(stock.targetPrice || 0, stock.market)}</span>
                     </div>
                 </td>
                 <td>
@@ -545,6 +556,13 @@ function updatePricesInTable(prevPrices) {
 
         if (rangeCell) {
             rangeCell.innerHTML = getFiftyTwoWeekBar(price, stock.fiftyTwoWeekLow, stock.fiftyTwoWeekHigh, stock.market);
+        }
+
+        const targetPriceCell = document.querySelector(
+            `[data-target-price-cell="${stock.symbol}"]`
+        );
+        if (targetPriceCell) {
+            targetPriceCell.textContent = `目標: ${formatPrice(stock.targetPrice || 0, stock.market)}`;
         }
     });
 }

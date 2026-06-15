@@ -1427,3 +1427,11 @@ tr.dragging {
         grid-template-columns: 1fr;
     }
 }
+
+/* --- Target Price Style --- */
+.target-price-text {
+    font-size: 11px;
+    color: #c084fc; /* Light purple tint to stand out subtly as a forecast/goal */
+    font-weight: 600;
+    margin-top: 2px;
+}
