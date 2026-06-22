@@ -478,6 +478,14 @@ function renderTable() {
                 </td>
                 <td>
                     <div class="cell-composite">
+                        <span class="cell-change ${changeClass}" data-change-cell="${stock.symbol}">
+                            <span class="change-badge ${changeClass}">${arrow} ${changeText}</span>
+                        </span>
+                        <span class="cell-subtext ${pnlCash.classStr}" data-pnl-cash-cell="${stock.symbol}">${pnlCash.text}</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="cell-composite">
                         <span class="cell-price-sm" data-pe-cell="${stock.symbol}">PE: ${stock.peRatio != null ? stock.peRatio.toFixed(1) + 'x' : '—'}</span>
                         <span class="cell-subtext" data-yield-cell="${stock.symbol}">殖利率: ${formatDividendYield(stock.dividendYield)}</span>
                     </div>
@@ -497,14 +505,6 @@ function renderTable() {
                 <td>
                     <div class="sparkline-container" data-sparkline-cell="${stock.symbol}">
                         <canvas class="sparkline-canvas" width="100" height="30"></canvas>
-                    </div>
-                </td>
-                <td>
-                    <div class="cell-composite">
-                        <span class="cell-change ${changeClass}" data-change-cell="${stock.symbol}">
-                            <span class="change-badge ${changeClass}">${arrow} ${changeText}</span>
-                        </span>
-                        <span class="cell-subtext ${pnlCash.classStr}" data-pnl-cash-cell="${stock.symbol}">${pnlCash.text}</span>
                     </div>
                 </td>
                 <td>
