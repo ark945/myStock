@@ -1435,3 +1435,26 @@ tr.dragging {
     font-weight: 600;
     margin-top: 2px;
 }
+
+/* --- Sparkline Chart Style (Option C) --- */
+.sparkline-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100px;
+    height: 30px;
+}
+
+.sparkline-canvas {
+    width: 100px;
+    height: 30px;
+    display: block;
+}
+
+/* RWD for mobile - Hide sparkline on small screens to maintain layout */
+@media (max-width: 992px) {
+    .stock-table th:nth-child(5),
+    .stock-table td:nth-child(5) {
+        display: none;
+    }
+}

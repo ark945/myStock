@@ -79,6 +79,7 @@ async function loadWatchlist() {
                     beta: item.beta != null ? parseFloat(item.beta) : null,
                     currentRatio: item.current_ratio != null ? parseFloat(item.current_ratio) : null,
                     targetPrice: item.target_price != null ? parseFloat(item.target_price) : 0.0,
+                    sparklineData: item.sparkline_data || "",
                 };
             });
         } else {
@@ -390,6 +391,7 @@ async function fetchQuotes() {
                     beta: item.beta != null ? parseFloat(item.beta) : null,
                     currentRatio: item.current_ratio != null ? parseFloat(item.current_ratio) : null,
                     targetPrice: item.target_price != null ? parseFloat(item.target_price) : 0.0,
+                    sparklineData: item.sparkline_data || "",
                 };
             });
 
@@ -466,6 +468,11 @@ function renderTable() {
                     </div>
                 </td>
                 <td>
+                    <div class="sparkline-container" data-sparkline-cell="${stock.symbol}">
+                        <canvas class="sparkline-canvas" width="100" height="30"></canvas>
+                    </div>
+                </td>
+                <td>
                     <div class="cell-composite">
                         <span class="cell-change ${changeClass}" data-change-cell="${stock.symbol}">
                             <span class="change-badge ${changeClass}">${arrow} ${changeText}</span>
@@ -489,6 +496,7 @@ function renderTable() {
 
     // 綁定拖曳相關事件到新生成的表格行上
     bindDragEvents();
+    renderAllSparklines();
 }
 
 function updatePricesInTable(prevPrices) {
@@ -565,6 +573,7 @@ function updatePricesInTable(prevPrices) {
             targetPriceCell.textContent = `目標: ${formatPrice(stock.targetPrice || 0, stock.market)}`;
         }
     });
+    renderAllSparklines();
 }
 
 // ========== Helpers ==========
@@ -1005,3 +1014,93 @@ async function init() {
 }
 
 init();
+
+// ========== Sparkline Charts (Option C) ==========
+function renderAllSparklines() {
+    watchlist.forEach((stock) => {
+        const container = document.querySelector(`[data-sparkline-cell="${stock.symbol}"]`);
+        if (!container) return;
+        const canvas = container.querySelector(".sparkline-canvas");
+        if (!canvas) return;
+        
+        // Calculate 30-day net change direction to set sparkline color
+        const prices = (stock.sparklineData || "").split(",").map(parseFloat).filter(p => !isNaN(p));
+        let isUp = true;
+        if (prices.length > 1) {
+            isUp = prices[prices.length - 1] >= prices[0];
+        }
+        
+        drawSparkline(canvas, stock.sparklineData, isUp, stock.market);
+    });
+}
+
+function drawSparkline(canvas, dataStr, isUp, market) {
+    const ctx = canvas.getContext("2d");
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+    
+    const prices = (dataStr || "").split(",").map(parseFloat).filter(p => !isNaN(p));
+    
+    if (prices.length < 2) {
+        // Draw standard fallback placeholder
+        ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+        ctx.font = "10px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("無走勢資料", width / 2, height / 2);
+        return;
+    }
+    
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    const range = max - min === 0 ? 1 : max - min;
+    
+    // Padding to avoid clipping the lines
+    const padding = 2;
+    const drawHeight = height - padding * 2;
+    
+    ctx.beginPath();
+    
+    // Determine color based on change direction and market standards
+    // TW: up is red, down is green. US: up is green, down is red.
+    let strokeColor = "rgb(34, 197, 94)"; // green default
+    if (market === "TW") {
+        strokeColor = isUp ? "rgb(239, 68, 68)" : "rgb(34, 197, 94)"; // red if up, green if down
+    } else {
+        strokeColor = isUp ? "rgb(34, 197, 94)" : "rgb(239, 68, 68)"; // green if up, red if down
+    }
+    
+    // Draw the sparkline path
+    prices.forEach((price, idx) => {
+        const x = (idx / (prices.length - 1)) * width;
+        const y = height - padding - ((price - min) / range) * drawHeight;
+        if (idx === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+    });
+    
+    // Set style and stroke the line
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    
+    // Draw gradient area below the line
+    ctx.lineTo(width, height);
+    ctx.lineTo(0, height);
+    ctx.closePath();
+    
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    const fillBase = strokeColor.replace("rgb", "rgba").replace(")", "");
+    gradient.addColorStop(0, `${fillBase}, 0.12)`);
+    gradient.addColorStop(1, `${fillBase}, 0.0)`);
+    
+    ctx.fillStyle = gradient;
+    ctx.fill();
+}

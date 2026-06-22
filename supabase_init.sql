@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS watchlist (
     beta NUMERIC(12, 2),
     current_ratio NUMERIC(12, 2),
     target_price NUMERIC(12, 2) DEFAULT 0.00,
+    sparkline_data TEXT,
     price_updated_at TIMESTAMP WITH TIME ZONE,
     sort_order INT DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

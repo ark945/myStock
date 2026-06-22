@@ -65,9 +65,9 @@ async def price_updater_loop():
             symbols = [row["symbol"] for row in rows]
             
             if symbols:
-                # 檢查是否有任何股票的基本面欄位仍為空
+                # 檢查是否有任何股票的基本面欄位或走勢資料仍為空
                 has_empty_fundamentals = any(
-                    r.get("pe_ratio") is None and r.get("dividend_yield") is None and r.get("beta") is None
+                    (r.get("pe_ratio") is None and r.get("dividend_yield") is None and r.get("beta") is None) or not r.get("sparkline_data")
                     for r in rows
                 )
                 
@@ -107,6 +107,8 @@ async def price_updater_loop():
                                     update_data["beta"] = q["beta"]
                                 if q.get("current_ratio") is not None:
                                     update_data["current_ratio"] = q["current_ratio"]
+                                if q.get("sparkline_data") is not None:
+                                    update_data["sparkline_data"] = q["sparkline_data"]
 
                             supabase.table("watchlist") \
                                 .update(update_data) \
@@ -156,6 +158,7 @@ class WatchlistItem(BaseModel):
     entry_date: str = ""
     entry_price: Optional[float] = None
     target_price: Optional[float] = 0.0
+    sparkline_data: Optional[str] = ""
 
 
 class WatchlistUpdate(BaseModel):
@@ -256,6 +259,8 @@ async def api_add_watchlist(item: WatchlistItem):
                         data["beta"] = q["beta"]
                     if q.get("current_ratio") is not None:
                         data["current_ratio"] = q["current_ratio"]
+                    if q.get("sparkline_data") is not None:
+                        data["sparkline_data"] = q["sparkline_data"]
         except Exception as e:
             print(f"預先抓取新建倉股票 {item.symbol} 歷史與基本面指標失敗: {e}")
 

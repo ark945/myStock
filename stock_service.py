@@ -158,6 +158,7 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                         beta = None
                         current_ratio = None
                         
+                        sparkline_data = None
                         if fetch_fundamentals:
                             try:
                                 inf = ticker.info
@@ -167,6 +168,14 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                                 current_ratio = inf.get("currentRatio")
                             except Exception as fe:
                                 print(f"取得台股 {sym} 基本面失敗: {fe}")
+                                
+                            try:
+                                hist = ticker.history(period="1mo")
+                                if not hist.empty:
+                                    prices = list(hist["Close"].round(2))
+                                    sparkline_data = ",".join(map(str, prices))
+                            except Exception as he:
+                                print(f"取得台股 {sym} 走勢圖歷史失敗: {he}")
                                 
                         tw_metrics[sym] = {
                             "prev_close": _safe_float(fast.get("previousClose") or fast.get("regularMarketPreviousClose")),
@@ -178,6 +187,7 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                             "dividend_yield": _safe_float(dividend_yield),
                             "beta": _safe_float(beta),
                             "current_ratio": _safe_float(current_ratio),
+                            "sparkline_data": sparkline_data,
                         }
                 except Exception as e:
                     print(f"取得台股 {sym} 技術指標/基本面失敗: {e}")
@@ -259,6 +269,7 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                 "dividend_yield": metrics.get("dividend_yield"),
                 "beta": metrics.get("beta"),
                 "current_ratio": metrics.get("current_ratio"),
+                "sparkline_data": metrics.get("sparkline_data"),
                 "market": "TW",
                 "timestamp": timestamp,
                 "success": success,
@@ -294,6 +305,7 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                 "dividend_yield": metrics.get("dividend_yield"),
                 "beta": metrics.get("beta"),
                 "current_ratio": metrics.get("current_ratio"),
+                "sparkline_data": metrics.get("sparkline_data"),
                 "market": "TW",
                 "timestamp": "",
                 "success": price is not None,
@@ -320,6 +332,7 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                         dividend_yield = None
                         beta = None
                         current_ratio = None
+                        sparkline_data = None
                         
                         if fetch_fundamentals:
                             try:
@@ -330,6 +343,14 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                                 current_ratio = inf.get("currentRatio")
                             except Exception as fe:
                                 print(f"取得美股 {sym} 基本面失敗: {fe}")
+
+                            try:
+                                hist = ticker.history(period="1mo")
+                                if not hist.empty:
+                                    prices = list(hist["Close"].round(2))
+                                    sparkline_data = ",".join(map(str, prices))
+                            except Exception as he:
+                                print(f"取得美股 {sym} 走勢圖歷史失敗: {he}")
 
                         results.append({
                             "symbol": sym.upper(),
@@ -344,6 +365,7 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                             "dividend_yield": round(dividend_yield, 2) if dividend_yield else None,
                             "beta": round(beta, 3) if beta else None,
                             "current_ratio": round(current_ratio, 2) if current_ratio else None,
+                            "sparkline_data": sparkline_data,
                             "market": "US",
                             "timestamp": "",
                             "success": price is not None,
