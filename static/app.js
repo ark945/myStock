@@ -14,6 +14,7 @@ let refreshTimer = null;
 let isSearching = false;
 let pendingStock = null; // 待加入的股票資訊
 let editingSymbol = null; // 正在編輯的股票代號
+let activeTab = "watchlist"; // 目前處於哪個分頁 ("watchlist", "us-market", "jp-market", "kr-market")
 
 // ========== DOM Elements ==========
 const searchInput = document.getElementById("searchInput");
@@ -187,7 +188,7 @@ function renderSearchResults(results) {
                 <span class="result-symbol">${escapeHtml(r.symbol)}</span>
                 <span class="result-name">${escapeHtml(r.name)}</span>
             </div>
-            <span class="result-market ${r.market.toLowerCase()}">${r.market === "TW" ? "台股" : "美股"}</span>
+            <span class="result-market ${r.market.toLowerCase()}">${getMarketName(r.market)}</span>
         </div>
     `
         )
@@ -233,7 +234,7 @@ function openAddModal(stock) {
     modalStockInfo.innerHTML = `
         <span class="modal-stock-symbol">${escapeHtml(stock.symbol)}</span>
         <span class="modal-stock-name">${escapeHtml(stock.name)}</span>
-        <span class="result-market ${stock.market.toLowerCase()}">${stock.market === "TW" ? "台股" : "美股"}</span>
+        <span class="result-market ${stock.market.toLowerCase()}">${getMarketName(stock.market)}</span>
     `;
 
     // Default date to today
@@ -644,6 +645,16 @@ function updatePricesInTable(prevPrices) {
 }
 
 // ========== Helpers ==========
+function getMarketName(market) {
+    switch (market) {
+        case "TW": return "台股";
+        case "US": return "美股";
+        case "JP": return "日股";
+        case "KR": return "韓股";
+        default: return market;
+    }
+}
+
 function calcTargetDiff(currentPrice, targetPrice, market) {
     if (currentPrice == null || targetPrice == null || targetPrice === 0) {
         return { text: "", classStr: "neutral" };
@@ -995,7 +1006,13 @@ function setStatus(status) {
 function startRefreshTimer() {
     stopRefreshTimer();
     const seconds = parseInt(refreshInterval.value) || 15;
-    refreshTimer = setInterval(fetchQuotes, seconds * 1000);
+    refreshTimer = setInterval(() => {
+        if (activeTab === "watchlist") {
+            fetchQuotes();
+        } else {
+            fetchMarketOverview();
+        }
+    }, seconds * 1000);
 }
 
 function stopRefreshTimer() {
@@ -1249,4 +1266,229 @@ function drawSparkline(canvas, dataStr, isUp, market) {
     
     ctx.fillStyle = gradient;
     ctx.fill();
+}
+
+// ========== Market Overview (美日韓市場分頁) ==========
+
+// 1. Tab Switching Event Listeners
+document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+        const tabName = btn.getAttribute("data-tab");
+        activeTab = tabName;
+        
+        // Update active class on buttons
+        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        
+        // Update active class on tab content wrappers
+        document.querySelectorAll(".tab-content").forEach(content => content.classList.remove("active"));
+        document.getElementById(`${tabName}-tab`).classList.add("active");
+        
+        // Fetch data immediately for the active tab
+        if (activeTab === "watchlist") {
+            if (watchlist.length > 0) {
+                fetchQuotes();
+            }
+        } else {
+            fetchMarketOverview();
+        }
+        
+        // Restart refresh timer
+        startRefreshTimer();
+    });
+});
+
+// 2. Fetch Market Overview Data
+async function fetchMarketOverview() {
+    try {
+        setStatus("active");
+        const res = await fetch(`${API_BASE}/api/market-overview`);
+        const data = await res.json();
+
+        if (data.success) {
+            if (activeTab === "us-market") {
+                renderIndexCards("usIndexCards", data.us);
+                renderMarketStocksTable("usStockTableBody", data.us);
+            } else if (activeTab === "jp-market") {
+                renderIndexCards("jpIndexCards", data.jp);
+                renderMarketStocksTable("jpStockTableBody", data.jp);
+            } else if (activeTab === "kr-market") {
+                renderIndexCards("krIndexCards", data.kr);
+                renderMarketStocksTable("krStockTableBody", data.kr);
+            }
+            updateLastUpdateTime();
+        }
+    } catch (err) {
+        console.error("Market overview fetch error:", err);
+        setStatus("error");
+    }
+}
+
+// 3. Render Index Cards
+function renderIndexCards(containerId, indexData) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    // The indices are identified by prefix "^"
+    const indices = indexData.filter(q => q.symbol.startsWith("^"));
+    
+    container.innerHTML = indices.map(idx => {
+        const price = idx.price;
+        const prevClose = idx.prev_close;
+        let changeText = "—";
+        let changeClass = "neutral";
+        let arrow = "";
+        let isUp = true;
+        
+        if (price != null && prevClose != null) {
+            const diff = price - prevClose;
+            const pct = (diff / prevClose) * 100;
+            isUp = diff >= 0;
+            changeText = `${diff.toFixed(2)} (${isUp ? '+' : ''}${pct.toFixed(2)}%)`;
+            changeClass = isUp ? "up" : "down";
+            arrow = isUp ? "▲" : "▼";
+        }
+        
+        return `
+            <div class="index-card ${changeClass}">
+                <span class="index-name">${escapeHtml(idx.name)}</span>
+                <span class="index-symbol">${escapeHtml(idx.symbol)}</span>
+                <div class="index-price-row">
+                    <span class="index-price">${price != null ? price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : "載入中..."}</span>
+                    <span class="index-change-badge ${changeClass}">${arrow} ${changeText}</span>
+                </div>
+                <div class="index-sparkline" data-market-sparkline-cell="${idx.symbol}">
+                    <canvas class="sparkline-canvas" width="200" height="40" style="width: 100%; height: 40px;"></canvas>
+                </div>
+            </div>
+        `;
+    }).join("");
+    
+    // Draw sparklines for indices
+    indices.forEach(idx => {
+        const cardCanvas = container.querySelector(`[data-market-sparkline-cell="${idx.symbol}"] .sparkline-canvas`);
+        if (cardCanvas && idx.sparkline_data) {
+            const prices = idx.sparkline_data.split(",").map(parseFloat).filter(p => !isNaN(p));
+            let isUp = true;
+            if (prices.length > 1) {
+                isUp = prices[prices.length - 1] >= prices[0];
+            }
+            drawSparkline(cardCanvas, idx.sparkline_data, isUp, idx.market);
+        }
+    });
+}
+
+// 4. Render Popular Stocks Table
+function renderMarketStocksTable(tbodyId, stocksData) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    
+    // Filter out indices
+    const stocks = stocksData.filter(q => !q.symbol.startsWith("^"));
+    
+    tbody.innerHTML = stocks.map(stock => {
+        const price = stock.price;
+        const yesterdayClose = stock.prev_close;
+        const dailyChange = calcDailyChange(price, yesterdayClose);
+        
+        // Check if already in watchlist
+        const inWatchlist = watchlist.some(w => w.symbol.toUpperCase() === stock.symbol.toUpperCase());
+        const addBtnHtml = inWatchlist 
+            ? `<button class="btn-icon btn-quick-add" disabled title="已在追蹤清單">✅</button>`
+            : `<button class="btn-icon btn-quick-add" onclick="quickAddStock('${escapeHtml(stock.symbol)}', '${escapeHtml(stock.name)}', '${escapeHtml(stock.market)}')" title="加入追蹤">➕</button>`;
+        
+        return `
+            <tr data-symbol="${stock.symbol}">
+                <td>
+                    <div class="cell-composite">
+                        <span class="cell-symbol">
+                            ${escapeHtml(stock.symbol)}
+                            <span class="market-tag ${stock.market.toLowerCase()}">${stock.market}</span>
+                        </span>
+                        <span class="cell-subtext cell-name" title="${escapeHtml(stock.name)}">${escapeHtml(stock.name)}</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="cell-composite" style="width: 100%; min-width: 120px;">
+                        <span class="cell-price">${price != null ? formatPrice(price, stock.market) : "載入中..."}</span>
+                        <span class="cell-subtext ${dailyChange.classStr}">${dailyChange.text}</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="cell-composite">
+                        <span class="cell-price-sm">PE: ${stock.pe_ratio != null ? stock.pe_ratio.toFixed(1) + 'x' : '—'}</span>
+                        <span class="cell-subtext">殖利率: ${formatDividendYield(stock.dividend_yield)}</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="cell-composite">
+                        <span class="cell-price-sm">${formatMarketCap(stock.market_cap, stock.market)}</span>
+                        <span class="cell-subtext">${formatVolume(stock.volume, stock.market)}</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="cell-composite">
+                        <span class="cell-price-sm">ROE: ${formatPercent(stock.roe)}</span>
+                        <span class="cell-subtext ${getPercentClass(stock.revenue_growth)}">營收YoY: ${formatPercent(stock.revenue_growth, true)}</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="sparkline-container" data-market-sparkline-cell="${stock.symbol}">
+                        <canvas class="sparkline-canvas" width="100" height="30"></canvas>
+                    </div>
+                </td>
+                <td>
+                    <span class="cell-actions">
+                        ${addBtnHtml}
+                    </span>
+                </td>
+            </tr>
+        `;
+    }).join("");
+    
+    // Draw sparklines for stocks
+    stocks.forEach(stock => {
+        const cardCanvas = tbody.querySelector(`[data-market-sparkline-cell="${stock.symbol}"] .sparkline-canvas`);
+        if (cardCanvas && stock.sparkline_data) {
+            const prices = stock.sparkline_data.split(",").map(parseFloat).filter(p => !isNaN(p));
+            let isUp = true;
+            if (prices.length > 1) {
+                isUp = prices[prices.length - 1] >= prices[0];
+            }
+            drawSparkline(cardCanvas, stock.sparkline_data, isUp, stock.market);
+        }
+    });
+}
+
+// 5. Quick Add Stock Function
+async function quickAddStock(symbol, name, market) {
+    try {
+        const response = await fetch("/api/watchlist", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                symbol: symbol,
+                name: name,
+                market: market,
+                entry_date: new Date().toISOString().split("T")[0],
+                entry_price: null,
+                target_price: 0
+            }),
+        });
+        const result = await response.json();
+        if (result.success) {
+            // Reload watchlist data local state
+            await loadWatchlist();
+            // Refresh current market tab rendering to show checkmark
+            await fetchMarketOverview();
+            alert(`已將 ${symbol} 加入您的追蹤清單！`);
+        } else {
+            alert(`加入失敗: ${result.error}`);
+        }
+    } catch (e) {
+        console.error("Quick add error:", e);
+        alert(`連線異常: ${e}`);
+    }
 }

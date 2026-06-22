@@ -46,8 +46,18 @@
             </div>
         </header>
 
-        <!-- 搜尋區域 -->
-        <section class="search-section">
+        <!-- 分頁導覽列 -->
+        <nav class="app-tabs">
+            <button class="tab-btn active" data-tab="watchlist">追蹤清單</button>
+            <button class="tab-btn" data-tab="us-market">美股</button>
+            <button class="tab-btn" data-tab="jp-market">日股</button>
+            <button class="tab-btn" data-tab="kr-market">韓股</button>
+        </nav>
+
+        <!-- 追蹤清單分頁內容 -->
+        <div id="watchlist-tab" class="tab-content active">
+            <!-- 搜尋區域 -->
+            <section class="search-section">
             <div class="search-box">
                 <div class="search-icon">🔍</div>
                 <input
@@ -153,12 +163,111 @@
                         </div>
                     </div>
                 </div>
-            </div>
         </section>
+        </div>
+
+        <!-- 美股市場分頁內容 -->
+        <div id="us-market-tab" class="tab-content">
+            <!-- 指數卡片區 -->
+            <div class="index-cards-grid" id="usIndexCards">
+                <!-- 由 JS 動態生成 4 個指數卡片 -->
+            </div>
+            <!-- 熱門個股列表 -->
+            <section class="stock-table-section">
+                <div class="table-header-bar">
+                    <h2>熱門美股</h2>
+                    <span class="stock-count">4 檔</span>
+                </div>
+                <div class="table-container">
+                    <table class="stock-table">
+                        <thead>
+                            <tr>
+                                <th>股票資訊</th>
+                                <th>最新股價 (今日漲跌)</th>
+                                <th>估值 (PE/殖利率)</th>
+                                <th>市場 (市值/成交量)</th>
+                                <th>體質 (ROE/營收YoY)</th>
+                                <th>走勢 (30天)</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usStockTableBody">
+                            <!-- 由 JS 動態生成 -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- 日股市場分頁內容 -->
+        <div id="jp-market-tab" class="tab-content">
+            <!-- 指數卡片區 -->
+            <div class="index-cards-grid" id="jpIndexCards">
+                <!-- 由 JS 動態生成 2 個指數卡片 -->
+            </div>
+            <!-- 熱門個股列表 -->
+            <section class="stock-table-section">
+                <div class="table-header-bar">
+                    <h2>熱門日股</h2>
+                    <span class="stock-count">3 檔</span>
+                </div>
+                <div class="table-container">
+                    <table class="stock-table">
+                        <thead>
+                            <tr>
+                                <th>股票資訊</th>
+                                <th>最新股價 (今日漲跌)</th>
+                                <th>估值 (PE/殖利率)</th>
+                                <th>市場 (市值/成交量)</th>
+                                <th>體質 (ROE/營收YoY)</th>
+                                <th>走勢 (30天)</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="jpStockTableBody">
+                            <!-- 由 JS 動態生成 -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- 韓股市場分頁內容 -->
+        <div id="kr-market-tab" class="tab-content">
+            <!-- 指數卡片區 -->
+            <div class="index-cards-grid" id="krIndexCards">
+                <!-- 由 JS 動態生成 2 個指數卡片 -->
+            </div>
+            <!-- 熱門個股列表 -->
+            <section class="stock-table-section">
+                <div class="table-header-bar">
+                    <h2>熱門韓股</h2>
+                    <span class="stock-count">3 檔</span>
+                </div>
+                <div class="table-container">
+                    <table class="stock-table">
+                        <thead>
+                            <tr>
+                                <th>股票資訊</th>
+                                <th>最新股價 (今日漲跌)</th>
+                                <th>估值 (PE/殖利率)</th>
+                                <th>市場 (市值/成交量)</th>
+                                <th>體質 (ROE/營收YoY)</th>
+                                <th>走勢 (30天)</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="krStockTableBody">
+                            <!-- 由 JS 動態生成 -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
 
         <!-- 說明與聲明 -->
         <footer class="app-footer">
-            <span>台股資料來自 TWSE/TPEx・美股資料來自 Yahoo Finance（約 15 分鐘延遲）</span>
+            <span>台股資料來自 TWSE/TPEx・美日韓股資料來自 Yahoo Finance（約 15 分鐘延遲）</span>
         </footer>
     </div>
 

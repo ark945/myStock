@@ -60,7 +60,7 @@ async def price_updater_loop():
     while True:
         try:
             # A. 從 Supabase 取得目前所有正在追蹤的股票
-            response = supabase.table("watchlist").select("*").execute()
+            response = await asyncio.to_thread(lambda: supabase.table("watchlist").select("*").execute())
             rows = response.data if response.data else []
             symbols = [row["symbol"] for row in rows]
             
@@ -74,8 +74,8 @@ async def price_updater_loop():
                 # 每 24 小時（計數器 1440 輪）或有新股未初始化時，抓取完整基本面
                 do_fetch_fundamentals = (loop_count % 1440 == 0) or has_empty_fundamentals
                 
-                # B. 呼叫 get_quotes 批次抓取
-                quotes = get_quotes(symbols, fetch_fundamentals=do_fetch_fundamentals)
+                # B. 呼叫 get_quotes 批次抓取 (使用 to_thread)
+                quotes = await asyncio.to_thread(get_quotes, symbols, fetch_fundamentals=do_fetch_fundamentals)
                 
                 # C. 將更新後的價格與指標寫回 Supabase
                 success_count = 0
@@ -118,10 +118,12 @@ async def price_updater_loop():
                                 if q.get("revenue_growth") is not None:
                                     update_data["revenue_growth"] = q["revenue_growth"]
 
-                            supabase.table("watchlist") \
-                                .update(update_data) \
-                                .eq("symbol", q["symbol"]) \
+                            await asyncio.to_thread(
+                                lambda: supabase.table("watchlist")
+                                .update(update_data)
+                                .eq("symbol", q["symbol"])
                                 .execute()
+                            )
                             success_count += 1
                         except Exception as inner_e:
                             print(f"寫入單筆股價 {q['symbol']} 失敗: {inner_e}")
@@ -187,7 +189,7 @@ class WatchlistReorder(BaseModel):
 # Stock APIs
 # ==========================================
 @app.get("/api/search")
-async def api_search(
+def api_search(
     q: str = Query(..., description="搜尋關鍵字（股票代號或公司名稱）"),
     max_results: int = Query(10, ge=1, le=20),
 ):
@@ -197,7 +199,7 @@ async def api_search(
 
 
 @app.get("/api/quote")
-async def api_quote(
+def api_quote(
     symbols: str = Query(..., description="股票代號，多個以逗號分隔"),
 ):
     """批次取得即時報價"""
@@ -212,7 +214,7 @@ async def api_quote(
 # Watchlist CRUD APIs (Supabase)
 # ==========================================
 @app.get("/api/watchlist")
-async def api_get_watchlist():
+def api_get_watchlist():
     """取得所有追蹤清單"""
     try:
         response = supabase.table("watchlist").select("*").order("sort_order").order("id").execute()
@@ -223,7 +225,7 @@ async def api_get_watchlist():
 
 
 @app.post("/api/watchlist")
-async def api_add_watchlist(item: WatchlistItem):
+def api_add_watchlist(item: WatchlistItem):
     """加入股票到追蹤清單"""
     try:
         # 查詢當前最大 sort_order
@@ -292,7 +294,7 @@ async def api_add_watchlist(item: WatchlistItem):
 
 
 @app.put("/api/watchlist/reorder")
-async def api_reorder_watchlist(reorder: WatchlistReorder):
+def api_reorder_watchlist(reorder: WatchlistReorder):
     """重新排序追蹤清單"""
     try:
         for index, symbol in enumerate(reorder.symbols):
@@ -307,7 +309,7 @@ async def api_reorder_watchlist(reorder: WatchlistReorder):
 
 
 @app.put("/api/watchlist/{symbol}")
-async def api_update_watchlist(symbol: str, update: WatchlistUpdate):
+def api_update_watchlist(symbol: str, update: WatchlistUpdate):
     """更新建倉資料"""
     try:
         update_data = {}
@@ -327,13 +329,72 @@ async def api_update_watchlist(symbol: str, update: WatchlistUpdate):
 
 
 @app.delete("/api/watchlist/{symbol}")
-async def api_delete_watchlist(symbol: str):
+def api_delete_watchlist(symbol: str):
     """從追蹤清單移除股票"""
     try:
         supabase.table("watchlist").delete().eq("symbol", symbol).execute()
         return {"success": True}
     except Exception as e:
         print(f"Supabase Delete Watchlist Error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/market-overview")
+def api_market_overview():
+    """取得美、日、韓市場指數與代表個股"""
+    try:
+        # 美股四大指數 + 熱門個股
+        us_symbols = ["^DJI", "^GSPC", "^IXIC", "^SOX", "AAPL", "NVDA", "MSFT", "TSLA"]
+        # 日股指數 + 熱門個股
+        jp_symbols = ["^N225", "^TPX", "7203.T", "6758.T", "9984.T"]
+        # 韓股指數 + 熱門個股
+        kr_symbols = ["^KS11", "^KQ11", "005930.KS", "000660.KS", "005380.KS"]
+        
+        all_symbols = us_symbols + jp_symbols + kr_symbols
+        
+        # 批次抓取報價，帶有基本面與歷史走勢 (因為要畫 sparkline)
+        quotes = get_quotes(all_symbols, fetch_fundamentals=True)
+        
+        # 定義每個 Symbol 的中文名稱對照，因為 fast_info 不含名稱
+        names_map = {
+            "^DJI": "道瓊工業指數",
+            "^GSPC": "標普 500 指數",
+            "^IXIC": "那斯達克綜合指數",
+            "^SOX": "費城半導體指數",
+            "AAPL": "蘋果公司 (Apple)",
+            "NVDA": "輝達 (NVIDIA)",
+            "MSFT": "微軟 (Microsoft)",
+            "TSLA": "特斯拉 (Tesla)",
+            "^N225": "日經 225 指數",
+            "^TPX": "東證一部指數",
+            "7203.T": "豐田汽車 (Toyota)",
+            "6758.T": "索尼 (Sony)",
+            "9984.T": "軟銀集團 (SoftBank)",
+            "^KS11": "韓國綜合股價指數 (KOSPI)",
+            "^KQ11": "韓國科斯達克指數 (KOSDAQ)",
+            "005930.KS": "三星電子 (Samsung)",
+            "000660.KS": "SK 海力士 (SK Hynix)",
+            "005380.KS": "現代汽車 (Hyundai)",
+        }
+        
+        # 將中文名稱對照填入，並按照市場分類
+        for q in quotes:
+            symbol = q.get("symbol", "")
+            q["name"] = names_map.get(symbol, q.get("name", ""))
+            
+        # 分類
+        us_data = [q for q in quotes if q.get("symbol") in us_symbols]
+        jp_data = [q for q in quotes if q.get("symbol") in jp_symbols]
+        kr_data = [q for q in quotes if q.get("symbol") in kr_symbols]
+        
+        return {
+            "success": True,
+            "us": us_data,
+            "jp": jp_data,
+            "kr": kr_data
+        }
+    except Exception as e:
+        print(f"Market Overview Error: {e}")
         return {"success": False, "error": str(e)}
 
 

@@ -16,6 +16,18 @@ def _is_tw_stock(symbol: str) -> bool:
     return bool(re.match(r"^\d{4,6}[A-Za-z]?$", symbol.strip()))
 
 
+def _get_market_by_symbol(symbol: str) -> str:
+    """根據代號判斷市場 (TW, JP, KR, US)"""
+    sym_upper = symbol.strip().upper()
+    if _is_tw_stock(sym_upper):
+        return "TW"
+    if sym_upper.endswith(".T") or sym_upper in ("^N225", "^TPX"):
+        return "JP"
+    if sym_upper.endswith(".KS") or sym_upper.endswith(".KQ") or sym_upper in ("^KS11", "^KQ11"):
+        return "KR"
+    return "US"
+
+
 def search_stock(keyword: str, max_results: int = 10) -> list[dict]:
     """
     搜尋股票，回傳符合條件的清單。
@@ -55,9 +67,9 @@ def search_stock(keyword: str, max_results: int = 10) -> list[dict]:
             if len(results) >= max_results:
                 break
 
-    # --- 美股搜尋（如果台股結果不足或看起來像英文）---
+    # --- 美股/外國股搜尋（如果台股結果不足或看起來像英文）---
     if len(results) < max_results and (
-        re.match(r"^[A-Za-z]", keyword) or len(results) == 0
+        re.match(r"^[A-Za-z\^]", keyword) or re.match(r"^\d", keyword) or len(results) == 0
     ):
         try:
             search = yf.Search(keyword, max_results=max_results - len(results))
@@ -70,7 +82,7 @@ def search_stock(keyword: str, max_results: int = 10) -> list[dict]:
                     "symbol": symbol,
                     "name": quote.get("shortname") or quote.get("longname", ""),
                     "exchange": quote.get("exchange", ""),
-                    "market": "US",
+                    "market": _get_market_by_symbol(symbol),
                     "type": quote.get("quoteType", ""),
                 })
         except Exception:
@@ -328,7 +340,7 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                 **({"error": str(e)} if price is None else {})
             })
 
-    # --- 美股即時報價與基本面 ---
+    # --- 美股/外國股即時報價與基本面 ---
     if us_symbols:
         try:
             tickers = yf.Tickers(" ".join(us_symbols))
@@ -377,22 +389,22 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                         results.append({
                             "symbol": sym.upper(),
                             "name": "",  # fast_info 不含名稱，前端已有快取
-                            "price": round(price, 2) if price else None,
-                            "prev_close": round(prev_close, 2) if prev_close else None,
-                            "fifty_two_week_low": round(fifty_two_week_low, 2) if fifty_two_week_low else None,
-                            "fifty_two_week_high": round(fifty_two_week_high, 2) if fifty_two_week_high else None,
-                            "ma_50": round(ma_50, 2) if ma_50 else None,
-                            "ma_200": round(ma_200, 2) if ma_200 else None,
-                            "pe_ratio": round(pe_ratio, 2) if pe_ratio else None,
-                            "dividend_yield": round(dividend_yield, 2) if dividend_yield else None,
-                            "beta": round(beta, 3) if beta else None,
-                            "current_ratio": round(current_ratio, 2) if current_ratio else None,
+                            "price": _safe_float(price),
+                            "prev_close": _safe_float(prev_close),
+                            "fifty_two_week_low": _safe_float(fifty_two_week_low),
+                            "fifty_two_week_high": _safe_float(fifty_two_week_high),
+                            "ma_50": _safe_float(ma_50),
+                            "ma_200": _safe_float(ma_200),
+                            "pe_ratio": _safe_float(pe_ratio),
+                            "dividend_yield": _safe_float(dividend_yield),
+                            "beta": _safe_float(beta, 3),
+                            "current_ratio": _safe_float(current_ratio),
                             "sparkline_data": sparkline_data,
-                            "market_cap": round(market_cap, 2) if market_cap else None,
-                            "volume": int(volume) if volume else None,
-                            "roe": round(roe, 4) if roe else None,
-                            "revenue_growth": round(revenue_growth, 4) if revenue_growth else None,
-                            "market": "US",
+                            "market_cap": _safe_float(market_cap),
+                            "volume": _safe_int(volume),
+                            "roe": _safe_float(roe, 4),
+                            "revenue_growth": _safe_float(revenue_growth, 4),
+                            "market": _get_market_by_symbol(sym),
                             "timestamp": "",
                             "success": price is not None,
                         })
@@ -401,7 +413,7 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                             "symbol": sym.upper(),
                             "name": "",
                             "price": None,
-                            "market": "US",
+                            "market": _get_market_by_symbol(sym),
                             "timestamp": "",
                             "success": False,
                             "error": "Ticker not found",
@@ -411,7 +423,7 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                         "symbol": sym.upper(),
                         "name": "",
                         "price": None,
-                        "market": "US",
+                        "market": _get_market_by_symbol(sym),
                         "timestamp": "",
                         "success": False,
                         "error": str(e),
@@ -422,7 +434,7 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                     "symbol": sym.upper(),
                     "name": "",
                     "price": None,
-                    "market": "US",
+                    "market": _get_market_by_symbol(sym),
                     "timestamp": "",
                     "success": False,
                     "error": str(e),
@@ -431,21 +443,29 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
     return results
 
 
-def _safe_float(val) -> Optional[float]:
-    """安全轉換為 float"""
+def _safe_float(val, ndigits: int = 2) -> Optional[float]:
+    """安全轉換為 float，排除 NaN 和 Inf"""
+    import math
     try:
         if val is None or val == "" or val == "-":
             return None
-        return round(float(val), 2)
+        f = float(val)
+        if math.isnan(f) or math.isinf(f):
+            return None
+        return round(f, ndigits)
     except (ValueError, TypeError):
         return None
 
 
 def _safe_int(val) -> Optional[int]:
-    """安全轉換為 int"""
+    """安全轉換為 int，排除 NaN 和 Inf"""
+    import math
     try:
         if val is None or val == "" or val == "-":
             return None
-        return int(float(val))
+        f = float(val)
+        if math.isnan(f) or math.isinf(f):
+            return None
+        return int(f)
     except (ValueError, TypeError):
         return None
