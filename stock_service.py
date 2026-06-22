@@ -157,6 +157,8 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                         dividend_yield = None
                         beta = None
                         current_ratio = None
+                        roe = None
+                        revenue_growth = None
                         
                         sparkline_data = None
                         if fetch_fundamentals:
@@ -166,6 +168,8 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                                 dividend_yield = inf.get("dividendYield")
                                 beta = inf.get("beta")
                                 current_ratio = inf.get("currentRatio")
+                                roe = inf.get("returnOnEquity")
+                                revenue_growth = inf.get("revenueGrowth")
                             except Exception as fe:
                                 print(f"取得台股 {sym} 基本面失敗: {fe}")
                                 
@@ -188,6 +192,10 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                             "beta": _safe_float(beta),
                             "current_ratio": _safe_float(current_ratio),
                             "sparkline_data": sparkline_data,
+                            "market_cap": _safe_float(fast.get("marketCap")),
+                            "volume": _safe_int(fast.get("lastVolume") or fast.get("volume")),
+                            "roe": _safe_float(roe),
+                            "revenue_growth": _safe_float(revenue_growth),
                         }
                 except Exception as e:
                     print(f"取得台股 {sym} 技術指標/基本面失敗: {e}")
@@ -270,6 +278,10 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                 "beta": metrics.get("beta"),
                 "current_ratio": metrics.get("current_ratio"),
                 "sparkline_data": metrics.get("sparkline_data"),
+                "market_cap": metrics.get("market_cap"),
+                "volume": metrics.get("volume"),
+                "roe": metrics.get("roe"),
+                "revenue_growth": metrics.get("revenue_growth"),
                 "market": "TW",
                 "timestamp": timestamp,
                 "success": success,
@@ -306,6 +318,10 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                 "beta": metrics.get("beta"),
                 "current_ratio": metrics.get("current_ratio"),
                 "sparkline_data": metrics.get("sparkline_data"),
+                "market_cap": metrics.get("market_cap"),
+                "volume": metrics.get("volume"),
+                "roe": metrics.get("roe"),
+                "revenue_growth": metrics.get("revenue_growth"),
                 "market": "TW",
                 "timestamp": "",
                 "success": price is not None,
@@ -327,11 +343,15 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                         fifty_two_week_high = fast.get("yearHigh")
                         ma_50 = fast.get("fiftyDayAverage")
                         ma_200 = fast.get("twoHundredDayAverage")
+                        market_cap = fast.get("marketCap")
+                        volume = fast.get("lastVolume") or fast.get("volume")
 
                         pe_ratio = None
                         dividend_yield = None
                         beta = None
                         current_ratio = None
+                        roe = None
+                        revenue_growth = None
                         sparkline_data = None
                         
                         if fetch_fundamentals:
@@ -341,6 +361,8 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                                 dividend_yield = inf.get("dividendYield")
                                 beta = inf.get("beta")
                                 current_ratio = inf.get("currentRatio")
+                                roe = inf.get("returnOnEquity")
+                                revenue_growth = inf.get("revenueGrowth")
                             except Exception as fe:
                                 print(f"取得美股 {sym} 基本面失敗: {fe}")
 
@@ -366,6 +388,10 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
                             "beta": round(beta, 3) if beta else None,
                             "current_ratio": round(current_ratio, 2) if current_ratio else None,
                             "sparkline_data": sparkline_data,
+                            "market_cap": round(market_cap, 2) if market_cap else None,
+                            "volume": int(volume) if volume else None,
+                            "roe": round(roe, 4) if roe else None,
+                            "revenue_growth": round(revenue_growth, 4) if revenue_growth else None,
                             "market": "US",
                             "timestamp": "",
                             "success": price is not None,
@@ -411,5 +437,15 @@ def _safe_float(val) -> Optional[float]:
         if val is None or val == "" or val == "-":
             return None
         return round(float(val), 2)
+    except (ValueError, TypeError):
+        return None
+
+
+def _safe_int(val) -> Optional[int]:
+    """安全轉換為 int"""
+    try:
+        if val is None or val == "" or val == "-":
+            return None
+        return int(float(val))
     except (ValueError, TypeError):
         return None

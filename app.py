@@ -65,9 +65,9 @@ async def price_updater_loop():
             symbols = [row["symbol"] for row in rows]
             
             if symbols:
-                # 檢查是否有任何股票的基本面欄位或走勢資料仍為空
+                # 檢查是否有任何股票的基本面欄位、走勢或新財務指標仍為空
                 has_empty_fundamentals = any(
-                    (r.get("pe_ratio") is None and r.get("dividend_yield") is None and r.get("beta") is None) or not r.get("sparkline_data")
+                    (r.get("pe_ratio") is None and r.get("dividend_yield") is None and r.get("beta") is None) or not r.get("sparkline_data") or r.get("roe") is None or r.get("market_cap") is None
                     for r in rows
                 )
                 
@@ -96,6 +96,10 @@ async def price_updater_loop():
                                 update_data["ma_50"] = q["ma_50"]
                             if q.get("ma_200") is not None:
                                 update_data["ma_200"] = q["ma_200"]
+                            if q.get("market_cap") is not None:
+                                update_data["market_cap"] = q["market_cap"]
+                            if q.get("volume") is not None:
+                                update_data["volume"] = q["volume"]
                                 
                             # 只有在 fetch_fundamentals 為 True 且獲取到資料時才寫入基本面
                             if do_fetch_fundamentals:
@@ -109,6 +113,10 @@ async def price_updater_loop():
                                     update_data["current_ratio"] = q["current_ratio"]
                                 if q.get("sparkline_data") is not None:
                                     update_data["sparkline_data"] = q["sparkline_data"]
+                                if q.get("roe") is not None:
+                                    update_data["roe"] = q["roe"]
+                                if q.get("revenue_growth") is not None:
+                                    update_data["revenue_growth"] = q["revenue_growth"]
 
                             supabase.table("watchlist") \
                                 .update(update_data) \
@@ -159,6 +167,10 @@ class WatchlistItem(BaseModel):
     entry_price: Optional[float] = None
     target_price: Optional[float] = 0.0
     sparkline_data: Optional[str] = ""
+    market_cap: Optional[float] = None
+    volume: Optional[int] = None
+    roe: Optional[float] = None
+    revenue_growth: Optional[float] = None
 
 
 class WatchlistUpdate(BaseModel):
@@ -261,6 +273,14 @@ async def api_add_watchlist(item: WatchlistItem):
                         data["current_ratio"] = q["current_ratio"]
                     if q.get("sparkline_data") is not None:
                         data["sparkline_data"] = q["sparkline_data"]
+                    if q.get("market_cap") is not None:
+                        data["market_cap"] = q["market_cap"]
+                    if q.get("volume") is not None:
+                        data["volume"] = q["volume"]
+                    if q.get("roe") is not None:
+                        data["roe"] = q["roe"]
+                    if q.get("revenue_growth") is not None:
+                        data["revenue_growth"] = q["revenue_growth"]
         except Exception as e:
             print(f"預先抓取新建倉股票 {item.symbol} 歷史與基本面指標失敗: {e}")
 

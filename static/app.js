@@ -80,6 +80,10 @@ async function loadWatchlist() {
                     currentRatio: item.current_ratio != null ? parseFloat(item.current_ratio) : null,
                     targetPrice: item.target_price != null ? parseFloat(item.target_price) : 0.0,
                     sparklineData: item.sparkline_data || "",
+                    marketCap: item.market_cap != null ? parseFloat(item.market_cap) : null,
+                    volume: item.volume != null ? parseInt(item.volume) : null,
+                    roe: item.roe != null ? parseFloat(item.roe) : null,
+                    revenueGrowth: item.revenue_growth != null ? parseFloat(item.revenue_growth) : null,
                 };
             });
         } else {
@@ -392,6 +396,10 @@ async function fetchQuotes() {
                     currentRatio: item.current_ratio != null ? parseFloat(item.current_ratio) : null,
                     targetPrice: item.target_price != null ? parseFloat(item.target_price) : 0.0,
                     sparklineData: item.sparkline_data || "",
+                    marketCap: item.market_cap != null ? parseFloat(item.market_cap) : null,
+                    volume: item.volume != null ? parseInt(item.volume) : null,
+                    roe: item.roe != null ? parseFloat(item.roe) : null,
+                    revenueGrowth: item.revenue_growth != null ? parseFloat(item.revenue_growth) : null,
                 };
             });
 
@@ -456,6 +464,7 @@ function renderTable() {
                         <span class="cell-price">${stock.entryPrice != null ? formatPrice(stock.entryPrice, stock.market) : "—"}</span>
                         <span class="cell-subtext">${stock.entryDate || "—"}</span>
                         <span class="cell-subtext target-price-text" data-target-price-cell="${stock.symbol}">目標: ${formatPrice(stock.targetPrice || 0, stock.market)}</span>
+                        <span class="cell-subtext ${calcTargetDiff(price, stock.targetPrice, stock.market).classStr}" data-target-diff-cell="${stock.symbol}">${calcTargetDiff(price, stock.targetPrice, stock.market).text}</span>
                     </div>
                 </td>
                 <td>
@@ -465,6 +474,24 @@ function renderTable() {
                         <div class="fifty-two-week-bar-container" style="width: 100%; margin-top: 4px;" data-range-cell="${stock.symbol}">
                             ${getFiftyTwoWeekBar(price, stock.fiftyTwoWeekLow, stock.fiftyTwoWeekHigh, stock.market)}
                         </div>
+                    </div>
+                </td>
+                <td>
+                    <div class="cell-composite">
+                        <span class="cell-price-sm" data-pe-cell="${stock.symbol}">PE: ${stock.peRatio != null ? stock.peRatio.toFixed(1) + 'x' : '—'}</span>
+                        <span class="cell-subtext" data-yield-cell="${stock.symbol}">殖利率: ${formatDividendYield(stock.dividendYield)}</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="cell-composite">
+                        <span class="cell-price-sm" data-cap-cell="${stock.symbol}">${formatMarketCap(stock.marketCap, stock.market)}</span>
+                        <span class="cell-subtext" data-volume-cell="${stock.symbol}">${formatVolume(stock.volume, stock.market)}</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="cell-composite">
+                        <span class="cell-price-sm" data-roe-cell="${stock.symbol}">ROE: ${formatPercent(stock.roe)}</span>
+                        <span class="cell-subtext ${getPercentClass(stock.revenueGrowth)}" data-rev-cell="${stock.symbol}">營收YoY: ${formatPercent(stock.revenueGrowth, true)}</span>
                     </div>
                 </td>
                 <td>
@@ -572,11 +599,130 @@ function updatePricesInTable(prevPrices) {
         if (targetPriceCell) {
             targetPriceCell.textContent = `目標: ${formatPrice(stock.targetPrice || 0, stock.market)}`;
         }
+
+        const targetDiffCell = document.querySelector(
+            `[data-target-diff-cell="${stock.symbol}"]`
+        );
+        if (targetDiffCell) {
+            const targetDiff = calcTargetDiff(price, stock.targetPrice, stock.market);
+            targetDiffCell.className = `cell-subtext ${targetDiff.classStr}`;
+            targetDiffCell.textContent = targetDiff.text;
+        }
+
+        const peCell = document.querySelector(`[data-pe-cell="${stock.symbol}"]`);
+        if (peCell) {
+            peCell.textContent = `PE: ${stock.peRatio != null ? stock.peRatio.toFixed(1) + 'x' : '—'}`;
+        }
+
+        const yieldCell = document.querySelector(`[data-yield-cell="${stock.symbol}"]`);
+        if (yieldCell) {
+            yieldCell.textContent = `殖利率: ${formatDividendYield(stock.dividendYield)}`;
+        }
+
+        const capCell = document.querySelector(`[data-cap-cell="${stock.symbol}"]`);
+        if (capCell) {
+            capCell.textContent = formatMarketCap(stock.marketCap, stock.market);
+        }
+
+        const volumeCell = document.querySelector(`[data-volume-cell="${stock.symbol}"]`);
+        if (volumeCell) {
+            volumeCell.textContent = formatVolume(stock.volume, stock.market);
+        }
+
+        const roeCell = document.querySelector(`[data-roe-cell="${stock.symbol}"]`);
+        if (roeCell) {
+            roeCell.textContent = `ROE: ${formatPercent(stock.roe)}`;
+        }
+
+        const revCell = document.querySelector(`[data-rev-cell="${stock.symbol}"]`);
+        if (revCell) {
+            revCell.className = `cell-subtext ${getPercentClass(stock.revenueGrowth)}`;
+            revCell.textContent = `營收YoY: ${formatPercent(stock.revenueGrowth, true)}`;
+        }
     });
     renderAllSparklines();
 }
 
 // ========== Helpers ==========
+function calcTargetDiff(currentPrice, targetPrice, market) {
+    if (currentPrice == null || targetPrice == null || targetPrice === 0) {
+        return { text: "", classStr: "neutral" };
+    }
+    const diff = targetPrice - currentPrice;
+    const diffPct = (diff / currentPrice) * 100;
+    
+    if (diff <= 0) {
+        return { text: "達標 🎉", classStr: "target-reached" };
+    } else {
+        return { text: `距目標: +${diffPct.toFixed(2)}%`, classStr: "target-diff" };
+    }
+}
+
+function formatDividendYield(val) {
+    if (val == null) return "—";
+    let pct = val;
+    if (val > 0 && val < 0.1) {
+        pct = val * 100;
+    }
+    return `${pct.toFixed(2)}%`;
+}
+
+function formatMarketCap(cap, market) {
+    if (cap == null) return "—";
+    if (market === "TW") {
+        if (cap >= 1e12) {
+            return `${(cap / 1e12).toFixed(2)} 兆`;
+        } else {
+            return `${(cap / 1e8).toFixed(1)} 億`;
+        }
+    } else {
+        if (cap >= 1e12) {
+            return `$${(cap / 1e12).toFixed(2)}T`;
+        } else if (cap >= 1e9) {
+            return `$${(cap / 1e9).toFixed(1)}B`;
+        } else {
+            return `$${(cap / 1e6).toFixed(1)}M`;
+        }
+    }
+}
+
+function formatVolume(vol, market) {
+    if (vol == null) return "—";
+    if (market === "TW") {
+        const volumeInZhang = vol / 1000;
+        if (volumeInZhang >= 10000) {
+            return `${(volumeInZhang / 10000).toFixed(2)} 萬張`;
+        } else {
+            return `${Math.round(volumeInZhang).toLocaleString("zh-TW")} 張`;
+        }
+    } else {
+        if (vol >= 1e6) {
+            return `${(vol / 1e6).toFixed(2)}M`;
+        } else if (vol >= 1e3) {
+            return `${(vol / 1e3).toFixed(1)}K`;
+        } else {
+            return vol.toLocaleString("en-US");
+        }
+    }
+}
+
+function formatPercent(val, showPlus = false) {
+    if (val == null) return "—";
+    let pct = val;
+    if (val > -2 && val < 2) {
+        pct = val * 100;
+    }
+    const sign = showPlus && pct > 0 ? "+" : "";
+    return `${sign}${pct.toFixed(2)}%`;
+}
+
+function getPercentClass(val) {
+    if (val == null) return "neutral";
+    if (val > 0) return "up";
+    if (val < 0) return "down";
+    return "neutral";
+}
+
 function calcChange(currentPrice, entryPrice) {
     if (currentPrice == null || entryPrice == null || entryPrice === 0) {
         return { changeText: "—", changeClass: "neutral", arrow: "" };

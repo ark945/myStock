@@ -1445,6 +1445,30 @@ tr.dragging {
     margin-top: 2px;
 }
 
+.target-reached {
+    color: #f59e0b; /* Amber/gold */
+    font-weight: 700;
+    text-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+    animation: goldGlow 2s ease-in-out infinite;
+}
+
+@keyframes goldGlow {
+    0%, 100% { text-shadow: 0 0 4px rgba(245, 158, 11, 0.4); }
+    50% { text-shadow: 0 0 10px rgba(245, 158, 11, 0.8); }
+}
+
+.target-diff {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.cell-price-sm {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
 /* --- Sparkline Chart Style (Option C) --- */
 .sparkline-container {
     display: flex;
@@ -1460,10 +1484,21 @@ tr.dragging {
     display: block;
 }
 
-/* RWD for mobile - Hide sparkline on small screens to maintain layout */
-@media (max-width: 992px) {
+/* RWD for mobile - Hide extra columns progressively to maintain layout */
+@media (max-width: 1200px) {
     .stock-table th:nth-child(5),
-    .stock-table td:nth-child(5) {
+    .stock-table td:nth-child(5),
+    .stock-table th:nth-child(6),
+    .stock-table td:nth-child(6),
+    .stock-table th:nth-child(7),
+    .stock-table td:nth-child(7) {
+        display: none;
+    }
+}
+
+@media (max-width: 992px) {
+    .stock-table th:nth-child(8),
+    .stock-table td:nth-child(8) {
         display: none;
     }
 }
