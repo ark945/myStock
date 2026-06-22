@@ -140,12 +140,14 @@ body {
 .app-container {
     position: relative;
     z-index: 1;
-    max-width: 1200px;
+    width: 100%;
+    max-width: 1600px; /* Increased from 1200px to fully fit columns on desktop */
     margin: 0 auto;
     padding: 24px 20px;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
 }
 
 /* --- Header --- */
@@ -1045,6 +1047,10 @@ body {
         font-size: 13px;
     }
 
+    .table-container {
+        border-radius: 12px; /* Smaller border radius for better mobile fit */
+    }
+
     .stock-table thead th,
     .stock-table tbody td {
         padding: 10px 8px;
@@ -1072,6 +1078,17 @@ body {
     .col-drag,
     .cell-drag {
         display: none;
+    }
+
+    /* Adjust button sizes for tighter horizontal fit on mobile screens */
+    .btn-icon {
+        width: 30px;
+        height: 30px;
+        font-size: 13px;
+    }
+
+    .cell-actions {
+        gap: 4px;
     }
 }
 
@@ -1485,20 +1502,30 @@ tr.dragging {
 }
 
 /* RWD for mobile - Hide extra columns progressively to maintain layout */
-@media (max-width: 1200px) {
-    .stock-table th:nth-child(5),
-    .stock-table td:nth-child(5),
-    .stock-table th:nth-child(6),
-    .stock-table td:nth-child(6),
+@media (max-width: 1450px) {
     .stock-table th:nth-child(7),
     .stock-table td:nth-child(7) {
-        display: none;
+        display: none; /* Hide ROE/YoY first */
+    }
+}
+
+@media (max-width: 1300px) {
+    .stock-table th:nth-child(6),
+    .stock-table td:nth-child(6) {
+        display: none; /* Hide Market Cap/Volume */
+    }
+}
+
+@media (max-width: 1150px) {
+    .stock-table th:nth-child(5),
+    .stock-table td:nth-child(5) {
+        display: none; /* Hide PE/Yield */
     }
 }
 
 @media (max-width: 992px) {
     .stock-table th:nth-child(8),
     .stock-table td:nth-child(8) {
-        display: none;
+        display: none; /* Hide Sparkline */
     }
 }
