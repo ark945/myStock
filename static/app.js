@@ -448,7 +448,7 @@ function renderTable() {
                 <td class="cell-drag">
                     <span class="drag-handle" title="拖曳以排序">☰</span>
                 </td>
-                <td>
+                <td class="col-sticky">
                     <div class="cell-composite">
                         <span class="cell-symbol">
                             ${escapeHtml(stock.symbol)}
@@ -1399,7 +1399,7 @@ function renderMarketStocksTable(tbodyId, stocksData) {
         
         return `
             <tr data-symbol="${stock.symbol}">
-                <td>
+                <td class="col-sticky">
                     <div class="cell-composite">
                         <span class="cell-symbol">
                             ${escapeHtml(stock.symbol)}

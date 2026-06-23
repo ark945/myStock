@@ -1501,32 +1501,27 @@ tr.dragging {
     display: block;
 }
 
-/* RWD for mobile - Hide extra columns progressively to maintain layout */
-@media (max-width: 1450px) {
-    .stock-table th:nth-child(8),
-    .stock-table td:nth-child(8) {
-        display: none; /* Hide ROE/YoY first (now column 8) */
+/* Sticky column support for horizontal scrolling on mobile/narrow viewports (< 1200px) */
+@media (max-width: 1200px) {
+    .stock-table {
+        min-width: 1200px !important; /* Force minimum width to enable horizontal scrollbar */
     }
-}
 
-@media (max-width: 1300px) {
-    .stock-table th:nth-child(7),
-    .stock-table td:nth-child(7) {
-        display: none; /* Hide Market Cap/Volume (now column 7) */
+    .stock-table th.col-sticky,
+    .stock-table td.col-sticky {
+        position: sticky;
+        left: 0;
+        z-index: 10;
+        background-color: #0d1222 !important; /* Solid dark blue matching card background */
+        box-shadow: 4px 0 8px rgba(0, 0, 0, 0.4); /* Subtle right shadow edge */
     }
-}
-
-@media (max-width: 1150px) {
-    .stock-table th:nth-child(6),
-    .stock-table td:nth-child(6) {
-        display: none; /* Hide PE/Yield (now column 6) */
+    
+    .stock-table thead th.col-sticky {
+        background-color: #121829 !important; /* Darker theme matching the table header */
     }
-}
-
-@media (max-width: 992px) {
-    .stock-table th:nth-child(9),
-    .stock-table td:nth-child(9) {
-        display: none; /* Hide Sparkline (now column 9) */
+    
+    .stock-table tbody tr:hover td.col-sticky {
+        background-color: #171d2c !important; /* Maintain highlight on row hover */
     }
 }
 
