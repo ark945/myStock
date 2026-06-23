@@ -1065,6 +1065,7 @@ refreshInterval.addEventListener("change", () => {
 function bindDragEvents() {
     const rows = stockTableBody.querySelectorAll("tr");
     rows.forEach(row => {
+        // Desktop mouse drag & drop
         row.addEventListener("dragstart", (e) => {
             row.classList.add("dragging");
             e.dataTransfer.setData("text/plain", row.dataset.symbol);
@@ -1073,6 +1074,41 @@ function bindDragEvents() {
             row.classList.remove("dragging");
             saveNewOrder();
         });
+        
+        // Mobile touch drag & drop via handle
+        const handle = row.querySelector(".drag-handle");
+        if (handle) {
+            handle.addEventListener("touchstart", (e) => {
+                row.classList.add("dragging");
+                // Disable page scrolling while dragging
+                e.preventDefault();
+            }, { passive: false });
+            
+            handle.addEventListener("touchmove", (e) => {
+                const touchY = e.touches[0].clientY;
+                const afterElement = getDragAfterElement(stockTableBody, touchY);
+                if (afterElement == null) {
+                    stockTableBody.appendChild(row);
+                } else {
+                    stockTableBody.insertBefore(row, afterElement);
+                }
+                e.preventDefault();
+            }, { passive: false });
+            
+            handle.addEventListener("touchend", () => {
+                if (row.classList.contains("dragging")) {
+                    row.classList.remove("dragging");
+                    saveNewOrder();
+                }
+            });
+
+            handle.addEventListener("touchcancel", () => {
+                if (row.classList.contains("dragging")) {
+                    row.classList.remove("dragging");
+                    saveNewOrder();
+                }
+            });
+        }
     });
 }
 

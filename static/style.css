@@ -1074,12 +1074,6 @@ body {
         font-size: 16px;
     }
 
-    /* 手機版隱藏拖曳欄位，以箭頭按鈕操作即可 */
-    .col-drag,
-    .cell-drag {
-        display: none;
-    }
-
     /* Adjust button sizes for tighter horizontal fit on mobile screens */
     .btn-icon {
         width: 30px;
@@ -1507,20 +1501,44 @@ tr.dragging {
         min-width: 1200px !important; /* Force minimum width to enable horizontal scrollbar */
     }
 
-    .stock-table th.col-sticky,
-    .stock-table td.col-sticky {
+    /* 1. Watchlist table (#stockTable) has drag handles column (0px) and stock info column (44px) */
+    #stockTable th.col-drag,
+    #stockTable td.cell-drag {
         position: sticky;
         left: 0;
         z-index: 10;
-        background-color: #0d1222 !important; /* Solid dark blue matching card background */
-        box-shadow: 4px 0 8px rgba(0, 0, 0, 0.4); /* Subtle right shadow edge */
+        background-color: #0d1222 !important;
     }
     
+    #stockTable th.col-sticky,
+    #stockTable td.col-sticky {
+        position: sticky;
+        left: 44px;
+        z-index: 10;
+        background-color: #0d1222 !important;
+        box-shadow: 4px 0 8px rgba(0, 0, 0, 0.4); /* Shadow on the right side of stock info column */
+    }
+
+    /* 2. Market overview tables (without drag handles) have stock info column at 0px */
+    .tab-content .stock-table th.col-sticky,
+    .tab-content .stock-table td.col-sticky {
+        position: sticky;
+        left: 0;
+        z-index: 10;
+        background-color: #0d1222 !important;
+        box-shadow: 4px 0 8px rgba(0, 0, 0, 0.4);
+    }
+    
+    /* Sticky header background matching */
+    .stock-table thead th.col-drag,
     .stock-table thead th.col-sticky {
         background-color: #121829 !important; /* Darker theme matching the table header */
     }
     
-    .stock-table tbody tr:hover td.col-sticky {
+    /* Highlight sticky elements on row hover */
+    #stockTable tbody tr:hover td.cell-drag,
+    #stockTable tbody tr:hover td.col-sticky,
+    .tab-content .stock-table tbody tr:hover td.col-sticky {
         background-color: #171d2c !important; /* Maintain highlight on row hover */
     }
 }
