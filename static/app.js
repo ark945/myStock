@@ -470,7 +470,7 @@ function renderTable() {
                 </td>
                 <td>
                     <div class="cell-composite" style="width: 100%; min-width: 120px;">
-                        <span class="cell-price ${price != null ? "" : "loading"}" data-price-cell="${stock.symbol}">${price != null ? formatPrice(price, stock.market) : "載入中..."}</span>
+                        <span class="cell-price ${price != null ? "" : "loading"} ${price != null ? changeClass : ""}" data-price-cell="${stock.symbol}">${price != null ? formatPrice(price, stock.market) : "載入中..."}</span>
                         <span class="cell-subtext ${dailyChange.classStr}" data-daily-change-cell="${stock.symbol}">${dailyChange.text}</span>
                         <div class="fifty-two-week-bar-container" style="width: 100%; margin-top: 4px;" data-range-cell="${stock.symbol}">
                             ${getFiftyTwoWeekBar(price, stock.fiftyTwoWeekLow, stock.fiftyTwoWeekHigh, stock.market)}
@@ -555,7 +555,11 @@ function updatePricesInTable(prevPrices) {
 
         if (priceCell && price != null) {
             priceCell.textContent = formatPrice(price, stock.market);
-            priceCell.classList.remove("loading");
+            priceCell.classList.remove("loading", "up", "down", "neutral");
+            const { changeClass } = calcChange(price, stock.entryPrice);
+            if (changeClass) {
+                priceCell.classList.add(changeClass);
+            }
 
             // Flash animation when price changes
             if (prevPrice != null && prevPrice !== price && row) {

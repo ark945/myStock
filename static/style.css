@@ -612,6 +612,18 @@ body {
     font-variant-numeric: tabular-nums;
 }
 
+.cell-price.up {
+    color: var(--color-up);
+}
+
+.cell-price.down {
+    color: var(--color-down);
+}
+
+.cell-price.neutral {
+    color: var(--text-primary);
+}
+
 .cell-price.loading {
     color: var(--text-muted);
 }
