@@ -52,6 +52,7 @@
             <button class="tab-btn" data-tab="us-market">美股</button>
             <button class="tab-btn" data-tab="jp-market">日股</button>
             <button class="tab-btn" data-tab="kr-market">韓股</button>
+            <button class="tab-btn" data-tab="twf-market">台指期夜盤</button>
         </nav>
 
         <!-- 追蹤清單分頁內容 -->
@@ -258,6 +259,37 @@
                             </tr>
                         </thead>
                         <tbody id="krStockTableBody">
+                            <!-- 由 JS 動態生成 -->
+                        </tbody>
+                    </table>
+                </div>
+        </div>
+
+        <!-- 台指期夜盤分頁內容 -->
+        <div id="twf-market-tab" class="tab-content">
+            <!-- 指數卡片區 -->
+            <div class="index-cards-grid" id="twfIndexCards">
+                <!-- 由 JS 動態生成 4 個期貨卡片 -->
+            </div>
+            <!-- 期貨詳細表格 -->
+            <section class="stock-table-section">
+                <div class="table-header-bar">
+                    <h2>期貨報價明細</h2>
+                    <span class="stock-count">4 檔</span>
+                </div>
+                <div class="table-container">
+                    <table class="stock-table">
+                        <thead>
+                            <tr>
+                                <th class="col-sticky">商品資訊</th>
+                                <th>最新期指 (今日漲跌)</th>
+                                <th>今日區間 (最高/最低)</th>
+                                <th>昨收價 (成交量)</th>
+                                <th>走勢 (30天)</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="twfStockTableBody">
                             <!-- 由 JS 動態生成 -->
                         </tbody>
                     </table>

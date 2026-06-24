@@ -398,6 +398,30 @@ def api_market_overview():
         return {"success": False, "error": str(e)}
 
 
+@app.get("/api/market-futures")
+def api_market_futures():
+    """取得台指期貨即時行情與歷史走勢"""
+    try:
+        futures_symbols = [
+            "TWF:TXF:FUTURES",  # 臺股期貨 (大台)
+            "TWF:MXF:FUTURES",  # 小型臺指期 (小台)
+            "TWF:EXF:FUTURES",  # 電子期貨
+            "TWF:FXF:FUTURES",  # 金融期貨
+        ]
+        
+        # 批次抓取報價，帶有歷史走勢以畫 sparkline
+        quotes = get_quotes(futures_symbols, fetch_fundamentals=True)
+        
+        return {
+            "success": True,
+            "data": quotes
+        }
+    except Exception as e:
+        print(f"Market Futures Error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+
 # ==========================================
 # Static Files & Index
 # ==========================================

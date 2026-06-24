@@ -19,6 +19,8 @@ def _is_tw_stock(symbol: str) -> bool:
 def _get_market_by_symbol(symbol: str) -> str:
     """根據代號判斷市場 (TW, JP, KR, US)"""
     sym_upper = symbol.strip().upper()
+    if sym_upper.startswith("TWF:") or sym_upper.endswith(":FUTURES"):
+        return "TW"
     if _is_tw_stock(sym_upper):
         return "TW"
     if sym_upper.endswith(".T") or sym_upper in ("^N225", "^TPX"):
@@ -91,6 +93,109 @@ def search_stock(keyword: str, max_results: int = 10) -> list[dict]:
     return results[:max_results]
 
 
+def _fetch_anue_futures(symbol: str, fetch_fundamentals: bool = False) -> dict:
+    import urllib.request
+    import json
+    import time
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'Referer': 'https://invest.cnyes.com/'
+    }
+    
+    now_unix = int(time.time())
+    start_unix = now_unix - 30 * 24 * 3600
+    
+    url = f"https://ws.api.cnyes.com/ws/api/v1/charting/history?resolution=D&symbol={symbol}&from={now_unix}&to={start_unix}&quote=1"
+    
+    names_map = {
+        "TWF:TXF:FUTURES": "臺股期貨 (大台)",
+        "TWF:MXF:FUTURES": "小型臺指期 (小台)",
+        "TWF:EXF:FUTURES": "電子期貨",
+        "TWF:FXF:FUTURES": "金融期貨"
+    }
+    
+    result = {
+        "symbol": symbol,
+        "name": names_map.get(symbol, symbol),
+        "price": None,
+        "prev_close": None,
+        "fifty_two_week_low": None,
+        "fifty_two_week_high": None,
+        "ma_50": None,
+        "ma_200": None,
+        "pe_ratio": None,
+        "dividend_yield": None,
+        "beta": None,
+        "current_ratio": None,
+        "sparkline_data": None,
+        "market_cap": None,
+        "volume": None,
+        "roe": None,
+        "revenue_growth": None,
+        "market": "TW",
+        "timestamp": "",
+        "success": False
+    }
+    
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as response:
+            res = json.loads(response.read().decode('utf-8'))
+            if res.get("statusCode") == 200:
+                data = res.get("data", {})
+                t = data.get("t", [])
+                c = data.get("c", [])
+                quote = data.get("quote", {}) or {}
+                
+                price = quote.get("6") or quote.get("220026")
+                if price is not None:
+                    price = float(price)
+                elif c:
+                    price = float(c[0])
+                    
+                prev_close = quote.get("21")
+                if prev_close is not None:
+                    prev_close = float(prev_close)
+                elif len(c) > 1:
+                    prev_close = float(c[1])
+                    
+                fifty_two_week_low = quote.get("76")
+                if fifty_two_week_low is not None:
+                    fifty_two_week_low = float(fifty_two_week_low)
+                    
+                fifty_two_week_high = quote.get("75")
+                if fifty_two_week_high is not None:
+                    fifty_two_week_high = float(fifty_two_week_high)
+                    
+                volume = quote.get("800001")
+                if volume is not None:
+                    volume = int(float(volume))
+                elif data.get("v"):
+                    volume = int(float(data["v"][0]))
+                    
+                if c:
+                    prices = list(reversed(c))
+                    prices = [round(float(p), 2) for p in prices]
+                    result["sparkline_data"] = ",".join(map(str, prices))
+                    
+                result["price"] = price
+                result["prev_close"] = prev_close
+                result["fifty_two_week_low"] = fifty_two_week_low
+                result["fifty_two_week_high"] = fifty_two_week_high
+                result["volume"] = volume
+                result["success"] = price is not None
+                
+                if t:
+                    latest_t = t[0]
+                    result["timestamp"] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(latest_t))
+    except Exception as e:
+        print(f"Error fetching futures {symbol}: {e}")
+        result["error"] = str(e)
+        
+    return result
+
+
 def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dict]:
     """
     批次取得即時報價。
@@ -98,8 +203,14 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
     """
     results = []
 
-    tw_symbols = [s for s in symbols if _is_tw_stock(s)]
-    us_symbols = [s for s in symbols if not _is_tw_stock(s)]
+    futures_symbols = [s for s in symbols if s.startswith("TWF:") or ":FUTURES" in s]
+    tw_symbols = [s for s in symbols if _is_tw_stock(s) and s not in futures_symbols]
+    us_symbols = [s for s in symbols if not _is_tw_stock(s) and s not in futures_symbols]
+
+    # --- 獲取台指期貨即時報價 ---
+    for sym in futures_symbols:
+        res = _fetch_anue_futures(sym, fetch_fundamentals=fetch_fundamentals)
+        results.append(res)
 
     # --- 獲取台股即時報價與昨日收盤價 (從 TWSE 官方 API) ---
     tw_realtime_data = {}

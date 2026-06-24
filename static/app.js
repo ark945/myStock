@@ -14,7 +14,7 @@ let refreshTimer = null;
 let isSearching = false;
 let pendingStock = null; // 待加入的股票資訊
 let editingSymbol = null; // 正在編輯的股票代號
-let activeTab = "watchlist"; // 目前處於哪個分頁 ("watchlist", "us-market", "jp-market", "kr-market")
+let activeTab = "watchlist"; // 目前處於哪個分頁 ("watchlist", "us-market", "jp-market", "kr-market", "twf-market")
 
 // ========== DOM Elements ==========
 const searchInput = document.getElementById("searchInput");
@@ -1338,6 +1338,12 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
 async function fetchMarketOverview() {
     try {
         setStatus("active");
+        
+        if (activeTab === "twf-market") {
+            await fetchMarketFutures();
+            return;
+        }
+
         const res = await fetch(`${API_BASE}/api/market-overview`);
         const data = await res.json();
 
@@ -1528,3 +1534,149 @@ async function quickAddStock(symbol, name, market) {
         alert(`連線異常: ${e}`);
     }
 }
+
+// ========== TAIEX Futures (台指期夜盤分頁) ==========
+
+async function fetchMarketFutures() {
+    try {
+        const res = await fetch(`${API_BASE}/api/market-futures`);
+        const data = await res.json();
+
+        if (data.success) {
+            renderFuturesCards("twfIndexCards", data.data);
+            renderFuturesTable("twfStockTableBody", data.data);
+            updateLastUpdateTime();
+        }
+    } catch (err) {
+        console.error("Market futures fetch error:", err);
+        setStatus("error");
+    }
+}
+
+function renderFuturesCards(containerId, futuresData) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    container.innerHTML = futuresData.map(idx => {
+        const price = idx.price;
+        const prevClose = idx.prev_close;
+        let changeText = "—";
+        let changeClass = "neutral";
+        let arrow = "";
+        let isUp = true;
+        
+        if (price != null && prevClose != null) {
+            const diff = price - prevClose;
+            const pct = (diff / prevClose) * 100;
+            isUp = diff >= 0;
+            changeText = `${diff.toFixed(1)} (${isUp ? '+' : ''}${pct.toFixed(2)}%)`;
+            changeClass = isUp ? "up" : "down";
+            arrow = isUp ? "▲" : "▼";
+        }
+        
+        return `
+            <div class="index-card ${changeClass}">
+                <span class="index-name">${escapeHtml(idx.name)}</span>
+                <span class="index-symbol">${escapeHtml(idx.symbol)}</span>
+                <div class="index-price-row">
+                    <span class="index-price">${price != null ? price.toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1}) : "載入中..."}</span>
+                    <span class="index-change-badge ${changeClass}">${arrow} ${changeText}</span>
+                </div>
+                <div class="index-sparkline" data-futures-sparkline-cell="${idx.symbol}">
+                    <canvas class="sparkline-canvas" width="200" height="40" style="width: 100%; height: 40px;"></canvas>
+                </div>
+            </div>
+        `;
+    }).join("");
+    
+    // Draw sparklines
+    futuresData.forEach(idx => {
+        const cardCanvas = container.querySelector(`[data-futures-sparkline-cell="${idx.symbol}"] .sparkline-canvas`);
+        if (cardCanvas && idx.sparkline_data) {
+            const prices = idx.sparkline_data.split(",").map(parseFloat).filter(p => !isNaN(p));
+            let isUp = true;
+            if (prices.length > 1) {
+                isUp = prices[prices.length - 1] >= prices[0];
+            }
+            drawSparkline(cardCanvas, idx.sparkline_data, isUp, idx.market);
+        }
+    });
+}
+
+function renderFuturesTable(tbodyId, futuresData) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    
+    tbody.innerHTML = futuresData.map(stock => {
+        const price = stock.price;
+        const yesterdayClose = stock.prev_close;
+        const dailyChange = calcDailyChange(price, yesterdayClose);
+        
+        const high = stock.fifty_two_week_high;
+        const low = stock.fifty_two_week_low;
+        const rangeText = (high != null && low != null) 
+            ? `${low.toLocaleString()} - ${high.toLocaleString()}`
+            : "—";
+            
+        const vol = stock.volume;
+        const volText = vol != null ? `${vol.toLocaleString()} 口` : "—";
+        const prevCloseText = yesterdayClose != null ? yesterdayClose.toLocaleString() : "—";
+        
+        const inWatchlist = watchlist.some(w => w.symbol.toUpperCase() === stock.symbol.toUpperCase());
+        const addBtnHtml = inWatchlist 
+            ? `<button class="btn-icon btn-quick-add" disabled title="已在追蹤清單">✅</button>`
+            : `<button class="btn-icon btn-quick-add" onclick="quickAddStock('${escapeHtml(stock.symbol)}', '${escapeHtml(stock.name)}', '${escapeHtml(stock.market)}')" title="加入追蹤">➕</button>`;
+        
+        return `
+            <tr data-symbol="${stock.symbol}">
+                <td class="col-sticky">
+                    <div class="cell-composite">
+                        <span class="cell-symbol">
+                            ${escapeHtml(stock.symbol)}
+                            <span class="market-tag tw">期貨</span>
+                        </span>
+                        <span class="cell-subtext cell-name" title="${escapeHtml(stock.name)}">${escapeHtml(stock.name)}</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="cell-composite" style="width: 100%; min-width: 120px;">
+                        <span class="cell-price">${price != null ? price.toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1}) : "載入中..."}</span>
+                        <span class="cell-subtext ${dailyChange.classStr}">${dailyChange.text}</span>
+                    </div>
+                </td>
+                <td>
+                    <span class="cell-price-sm">${rangeText}</span>
+                </td>
+                <td>
+                    <div class="cell-composite">
+                        <span class="cell-price-sm">昨收: ${prevCloseText}</span>
+                        <span class="cell-subtext">量: ${volText}</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="sparkline-container" data-futures-sparkline-cell="${stock.symbol}">
+                        <canvas class="sparkline-canvas" width="100" height="30"></canvas>
+                    </div>
+                </td>
+                <td>
+                    <span class="cell-actions">
+                        ${addBtnHtml}
+                    </span>
+                </td>
+            </tr>
+        `;
+    }).join("");
+    
+    futuresData.forEach(stock => {
+        const rowCanvas = tbody.querySelector(`[data-futures-sparkline-cell="${stock.symbol}"] .sparkline-canvas`);
+        if (rowCanvas && stock.sparkline_data) {
+            const prices = stock.sparkline_data.split(",").map(parseFloat).filter(p => !isNaN(p));
+            let isUp = true;
+            if (prices.length > 1) {
+                isUp = prices[prices.length - 1] >= prices[0];
+            }
+            drawSparkline(rowCanvas, stock.sparkline_data, isUp, stock.market);
+        }
+    });
+}
+
