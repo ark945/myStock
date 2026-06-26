@@ -6,6 +6,8 @@ app.py — FastAPI 主應用
 
 import os
 import json
+import time
+import urllib.request
 from fastapi import FastAPI, Query, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -419,6 +421,71 @@ def api_market_futures():
     except Exception as e:
         print(f"Market Futures Error: {e}")
         return {"success": False, "error": str(e)}
+
+
+# --- Market Stats Cache ---
+market_stats_cache = {
+    "data": None,
+    "last_fetched": 0.0
+}
+
+@app.get("/api/market-stats")
+def api_market_stats():
+    """取得台股大盤（全市場）漲跌家數統計（帶有快取）"""
+    global market_stats_cache
+    now = time.time()
+    # Cache for 10 minutes (600 seconds)
+    if market_stats_cache["data"] is not None and (now - market_stats_cache["last_fetched"]) < 600:
+        return {"success": True, "data": market_stats_cache["data"]}
+        
+    try:
+        url = "https://openapi.twse.com.tw/v1/opendata/twtazu_od"
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'Mozilla/5.0'}
+        )
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            
+            stock_data = {}
+            for item in data:
+                if item.get("類型") == "股票":
+                    stock_data = {
+                        "up": int(item.get("上漲", 0)),
+                        "limit_up": int(item.get("漲停", 0)),
+                        "down": int(item.get("下跌", 0)),
+                        "limit_down": int(item.get("跌停", 0)),
+                        "flat": int(item.get("持平", 0)),
+                        "date": item.get("出表日期", "")
+                    }
+                    break
+            
+            if not stock_data and data:
+                item = data[0]
+                stock_data = {
+                    "up": int(item.get("上漲", 0)),
+                    "limit_up": int(item.get("漲停", 0)),
+                    "down": int(item.get("下跌", 0)),
+                    "limit_down": int(item.get("跌停", 0)),
+                    "flat": int(item.get("持平", 0)),
+                    "date": item.get("出表日期", "")
+                }
+            
+            if stock_data:
+                market_stats_cache["data"] = stock_data
+                market_stats_cache["last_fetched"] = now
+                return {"success": True, "data": stock_data}
+            else:
+                return {"success": False, "error": "No data found"}
+                
+    except Exception as e:
+        print(f"Fetch market stats error: {e}")
+        if market_stats_cache["data"] is not None:
+            return {"success": True, "data": market_stats_cache["data"], "cached": True}
+        return {"success": False, "error": str(e)}
+
+
+# ==========================================
 
 
 

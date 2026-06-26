@@ -77,7 +77,15 @@
         <section class="stock-table-section">
             <div class="table-header-bar">
                 <h2>追蹤清單</h2>
-                <span class="stock-count" id="stockCount">0 檔</span>
+                <div class="watchlist-stats">
+                    <span class="stock-count" id="stockCount">0 檔</span>
+                    <span class="stock-stat stock-up-count" id="stockUpCount" title="追蹤個股上漲">▲ 0 家</span>
+                    <span class="stock-stat stock-down-count" id="stockDownCount" title="追蹤個股下跌">▼ 0 家</span>
+                    <span class="stat-divider">|</span>
+                    <span class="market-label">台股大盤:</span>
+                    <span class="stock-stat stock-up-count" id="marketUpCount" title="大盤上市股票上漲家數">▲ 0 家</span>
+                    <span class="stock-stat stock-down-count" id="marketDownCount" title="大盤上市股票下跌家數">▼ 0 家</span>
+                </div>
             </div>
             <div class="table-container">
                 <table class="stock-table" id="stockTable">

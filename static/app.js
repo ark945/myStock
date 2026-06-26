@@ -406,6 +406,7 @@ async function fetchQuotes() {
 
             updatePricesInTable(prevPrices);
             updateLastUpdateTime();
+            loadMarketStats();
             setStatus("active");
         }
     } catch (err) {
@@ -414,10 +415,66 @@ async function fetchQuotes() {
     }
 }
 
+// ========== Market Stats ==========
+async function loadMarketStats() {
+    try {
+        const res = await fetch(`${API_BASE}/api/market-stats`);
+        const data = await res.json();
+        if (data.success && data.data) {
+            const up = data.data.up;
+            const down = data.data.down;
+            const limitUp = data.data.limit_up;
+            const limitDown = data.data.limit_down;
+
+            const marketUpCount = document.getElementById("marketUpCount");
+            const marketDownCount = document.getElementById("marketDownCount");
+
+            if (marketUpCount) {
+                marketUpCount.textContent = `▲ ${up} 家${limitUp > 0 ? ` (漲停 ${limitUp})` : ""}`;
+            }
+            if (marketDownCount) {
+                marketDownCount.textContent = `▼ ${down} 家${limitDown > 0 ? ` (跌停 ${limitDown})` : ""}`;
+            }
+        }
+    } catch (err) {
+        console.error("Load market stats error:", err);
+    }
+}
+
+// ========== Watchlist Stats ==========
+function updateWatchlistStats() {
+    let upCount = 0;
+    let downCount = 0;
+
+    watchlist.forEach((stock) => {
+        const price = latestPrices[stock.symbol];
+        const yesterdayClose = yesterdayCloses[stock.symbol];
+
+        if (price != null && yesterdayClose != null && yesterdayClose !== 0) {
+            if (price > yesterdayClose) {
+                upCount++;
+            } else if (price < yesterdayClose) {
+                downCount++;
+            }
+        }
+    });
+
+    const stockUpCount = document.getElementById("stockUpCount");
+    const stockDownCount = document.getElementById("stockDownCount");
+
+    if (stockUpCount) {
+        stockUpCount.textContent = `▲ ${upCount} 家`;
+    }
+    if (stockDownCount) {
+        stockDownCount.textContent = `▼ ${downCount} 家`;
+    }
+}
+
 // ========== Render Table ==========
 function renderTable() {
     const count = watchlist.length;
     stockCount.textContent = `${count} 檔`;
+    updateWatchlistStats();
 
     if (count === 0) {
         stockTableBody.innerHTML = "";
@@ -646,6 +703,7 @@ function updatePricesInTable(prevPrices) {
         }
     });
     renderAllSparklines();
+    updateWatchlistStats();
 }
 
 // ========== Helpers ==========
@@ -1193,6 +1251,7 @@ async function moveStock(symbol, direction) {
 async function init() {
     await loadWatchlist();
     renderTable();
+    loadMarketStats();
 
     // 綁定全域的 dragover 到 tbody 上
     stockTableBody.addEventListener("dragover", (e) => {

@@ -480,6 +480,12 @@ body {
     color: var(--text-primary);
 }
 
+.watchlist-stats {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .stock-count {
     font-size: 13px;
     color: var(--text-muted);
@@ -488,6 +494,40 @@ body {
     border-radius: 100px;
     border: 1px solid var(--border-subtle);
 }
+
+.stock-stat {
+    font-size: 13px;
+    padding: 4px 14px;
+    border-radius: 100px;
+    border: 1px solid var(--border-subtle);
+    font-weight: 600;
+    transition: all var(--transition-fast);
+}
+
+.stock-up-count {
+    color: var(--color-up);
+    background: var(--color-up-bg);
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.stock-down-count {
+    color: var(--color-down);
+    background: var(--color-down-bg);
+    border-color: rgba(34, 197, 94, 0.2);
+}
+
+.stat-divider {
+    color: var(--text-muted);
+    opacity: 0.4;
+    margin: 0 4px;
+}
+
+.market-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
 
 .table-container {
     background: var(--bg-glass);
