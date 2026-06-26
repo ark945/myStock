@@ -1787,17 +1787,32 @@ tr.dragging {
     box-shadow: 0 0 15px var(--color-down-bg) !important;
 }
 
-/* 建倉價比較箭頭 */
-.price-compare-arrow {
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 700;
+/* 建倉價比較徽章 (不一樣的設計) */
+.price-compare-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    font-size: 10px;
+    font-weight: 800;
+    transition: all var(--transition-fast);
+    margin-left: 6px;
+    border: 1px solid transparent;
+    vertical-align: middle;
 }
-.price-compare-arrow.up {
+.price-compare-badge.up {
+    background: var(--color-up-bg) !important;
+    border-color: rgba(239, 68, 68, 0.25) !important;
     color: var(--color-up) !important;
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.15);
 }
-.price-compare-arrow.down {
+.price-compare-badge.down {
+    background: var(--color-down-bg) !important;
+    border-color: rgba(34, 197, 94, 0.25) !important;
     color: var(--color-down) !important;
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.15);
 }
 
 

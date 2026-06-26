@@ -722,9 +722,9 @@ function getEntryCompareArrowHtml(price, entryPrice) {
         return "";
     }
     const isUp = price >= entryPrice;
-    const arrow = isUp ? "▲" : "▼";
+    const arrow = isUp ? "↗" : "↘";
     const colorClass = isUp ? "up" : "down";
-    return `<span class="price-compare-arrow ${colorClass}" title="與建倉價比較: ${isUp ? '高於或等於建倉' : '低於建倉'}">${arrow}</span>`;
+    return `<span class="price-compare-badge ${colorClass}" title="與建倉價比較: ${isUp ? '高於或等於建倉' : '低於建倉'}">${arrow}</span>`;
 }
 
 function getMarketName(market) {
