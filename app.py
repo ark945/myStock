@@ -8,6 +8,7 @@ import os
 import json
 import time
 import urllib.request
+import re
 from fastapi import FastAPI, Query, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -438,6 +439,54 @@ def api_market_stats():
     if market_stats_cache["data"] is not None and (now - market_stats_cache["last_fetched"]) < 600:
         return {"success": True, "data": market_stats_cache["data"]}
         
+    # 1. 優先嘗試從證交所官網 MI_INDEX 取得當日最新即時統計
+    try:
+        url = "https://www.twse.com.tw/exchangeReport/MI_INDEX?response=json&type=MS"
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'Mozilla/5.0'}
+        )
+        with urllib.request.urlopen(req, timeout=5) as response:
+            content = response.read()
+            data = json.loads(content.decode('utf-8'))
+            if data.get("stat") == "OK":
+                tables = data.get("tables", [])
+                stock_data = {}
+                found = False
+                for table in tables:
+                    if table.get("title") == "漲跌證券數合計":
+                        found = True
+                        rows = table.get("data", [])
+                        for r in rows:
+                            if len(r) < 3:
+                                continue
+                            type_name = r[0]
+                            stock_str = r[2] # 股票欄位
+                            
+                            m = re.match(r"([\d,]+)(?:\((\d+)\))?", stock_str.strip())
+                            if m:
+                                val = int(m.group(1).replace(",", ""))
+                                limit_val = int(m.group(2)) if m.group(2) else 0
+                                
+                                if "上漲" in type_name:
+                                    stock_data["up"] = val
+                                    stock_data["limit_up"] = limit_val
+                                elif "下跌" in type_name:
+                                    stock_data["down"] = val
+                                    stock_data["limit_down"] = limit_val
+                                elif "持平" in type_name:
+                                    stock_data["flat"] = val
+                        break
+                
+                if found and stock_data:
+                    stock_data["date"] = data.get("date", "")
+                    market_stats_cache["data"] = stock_data
+                    market_stats_cache["last_fetched"] = now
+                    return {"success": True, "data": stock_data}
+    except Exception as e:
+        print(f"Fetch market stats from MI_INDEX failed: {e}. Trying fallback to OpenAPI...")
+        
+    # 2. Fallback: 嘗試從原本的 OpenAPI twtazu_od 取得統計
     try:
         url = "https://openapi.twse.com.tw/v1/opendata/twtazu_od"
         req = urllib.request.Request(
@@ -445,11 +494,11 @@ def api_market_stats():
             headers={'User-Agent': 'Mozilla/5.0'}
         )
         with urllib.request.urlopen(req, timeout=5) as response:
-            data = json.loads(response.read().decode('utf-8'))
+            data = json.loads(response.read().decode('utf-8-sig'))
             
             stock_data = {}
             for item in data:
-                if item.get("類型") == "股票":
+                if "股票" in item.get("類型", ""):
                     stock_data = {
                         "up": int(item.get("上漲", 0)),
                         "limit_up": int(item.get("漲停", 0)),
@@ -479,7 +528,7 @@ def api_market_stats():
                 return {"success": False, "error": "No data found"}
                 
     except Exception as e:
-        print(f"Fetch market stats error: {e}")
+        print(f"Fetch market stats from OpenAPI fallback error: {e}")
         if market_stats_cache["data"] is not None:
             return {"success": True, "data": market_stats_cache["data"], "cached": True}
         return {"success": False, "error": str(e)}
