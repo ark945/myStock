@@ -1787,16 +1787,16 @@ tr.dragging {
     box-shadow: 0 0 15px var(--color-down-bg) !important;
 }
 
-/* 目標價比較箭頭 */
-.target-compare-arrow {
+/* 建倉價比較箭頭 */
+.price-compare-arrow {
     display: inline-block;
     font-size: 11px;
     font-weight: 700;
 }
-.target-compare-arrow.up {
+.price-compare-arrow.up {
     color: var(--color-up) !important;
 }
-.target-compare-arrow.down {
+.price-compare-arrow.down {
     color: var(--color-down) !important;
 }
 

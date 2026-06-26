@@ -529,7 +529,7 @@ function renderTable() {
                     <div class="cell-composite" style="width: 100%; min-width: 120px;">
                         <div style="display: flex; align-items: center; gap: 6px;">
                             <span class="cell-price ${price != null ? "" : "loading"} ${price != null ? dailyChange.classStr : ""}" data-price-cell="${stock.symbol}">${price != null ? formatPrice(price, stock.market) : "載入中..."}</span>
-                            <span data-target-arrow-cell="${stock.symbol}">${getTargetArrowHtml(price, stock.targetPrice)}</span>
+                            <span data-entry-arrow-cell="${stock.symbol}">${getEntryCompareArrowHtml(price, stock.entryPrice)}</span>
                         </div>
                         <span class="cell-subtext ${dailyChange.classStr}" data-daily-change-cell="${stock.symbol}">${dailyChange.text}</span>
                         <div class="fifty-two-week-bar-container" style="width: 100%; margin-top: 4px;" data-range-cell="${stock.symbol}">
@@ -658,11 +658,11 @@ function updatePricesInTable(prevPrices) {
             rangeCell.innerHTML = getFiftyTwoWeekBar(price, stock.fiftyTwoWeekLow, stock.fiftyTwoWeekHigh, stock.market);
         }
 
-        const targetArrowCell = document.querySelector(
-            `[data-target-arrow-cell="${stock.symbol}"]`
+        const entryArrowCell = document.querySelector(
+            `[data-entry-arrow-cell="${stock.symbol}"]`
         );
-        if (targetArrowCell) {
-            targetArrowCell.innerHTML = getTargetArrowHtml(price, stock.targetPrice);
+        if (entryArrowCell) {
+            entryArrowCell.innerHTML = getEntryCompareArrowHtml(price, stock.entryPrice);
         }
 
         const targetPriceCell = document.querySelector(
@@ -717,14 +717,14 @@ function updatePricesInTable(prevPrices) {
 }
 
 // ========== Helpers ==========
-function getTargetArrowHtml(price, targetPrice) {
-    if (price == null || targetPrice == null || targetPrice === 0) {
+function getEntryCompareArrowHtml(price, entryPrice) {
+    if (price == null || entryPrice == null || entryPrice === 0) {
         return "";
     }
-    const isUp = price >= targetPrice;
+    const isUp = price >= entryPrice;
     const arrow = isUp ? "▲" : "▼";
     const colorClass = isUp ? "up" : "down";
-    return `<span class="target-compare-arrow ${colorClass}" title="與目標價比較: ${isUp ? '高於或等於目標' : '低於目標'}">${arrow}</span>`;
+    return `<span class="price-compare-arrow ${colorClass}" title="與建倉價比較: ${isUp ? '高於或等於建倉' : '低於建倉'}">${arrow}</span>`;
 }
 
 function getMarketName(market) {
