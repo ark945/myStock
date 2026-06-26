@@ -1769,3 +1769,35 @@ tr.dragging {
     cursor: default;
 }
 
+/* 台指期卡片樣式：上漲紅，下跌綠 */
+#twfIndexCards .index-change-badge.up {
+    background: var(--color-up-bg) !important;
+    color: var(--color-up) !important;
+}
+#twfIndexCards .index-change-badge.down {
+    background: var(--color-down-bg) !important;
+    color: var(--color-down) !important;
+}
+#twfIndexCards .index-card.up:hover {
+    border-color: var(--color-up-glow) !important;
+    box-shadow: 0 0 15px var(--color-up-bg) !important;
+}
+#twfIndexCards .index-card.down:hover {
+    border-color: var(--color-down-glow) !important;
+    box-shadow: 0 0 15px var(--color-down-bg) !important;
+}
+
+/* 目標價比較箭頭 */
+.target-compare-arrow {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+}
+.target-compare-arrow.up {
+    color: var(--color-up) !important;
+}
+.target-compare-arrow.down {
+    color: var(--color-down) !important;
+}
+
+

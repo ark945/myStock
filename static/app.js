@@ -527,7 +527,10 @@ function renderTable() {
                 </td>
                 <td>
                     <div class="cell-composite" style="width: 100%; min-width: 120px;">
-                        <span class="cell-price ${price != null ? "" : "loading"} ${price != null ? changeClass : ""}" data-price-cell="${stock.symbol}">${price != null ? formatPrice(price, stock.market) : "載入中..."}</span>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span class="cell-price ${price != null ? "" : "loading"} ${price != null ? dailyChange.classStr : ""}" data-price-cell="${stock.symbol}">${price != null ? formatPrice(price, stock.market) : "載入中..."}</span>
+                            <span data-target-arrow-cell="${stock.symbol}">${getTargetArrowHtml(price, stock.targetPrice)}</span>
+                        </div>
                         <span class="cell-subtext ${dailyChange.classStr}" data-daily-change-cell="${stock.symbol}">${dailyChange.text}</span>
                         <div class="fifty-two-week-bar-container" style="width: 100%; margin-top: 4px;" data-range-cell="${stock.symbol}">
                             ${getFiftyTwoWeekBar(price, stock.fiftyTwoWeekLow, stock.fiftyTwoWeekHigh, stock.market)}
@@ -613,9 +616,9 @@ function updatePricesInTable(prevPrices) {
         if (priceCell && price != null) {
             priceCell.textContent = formatPrice(price, stock.market);
             priceCell.classList.remove("loading", "up", "down", "neutral");
-            const { changeClass } = calcChange(price, stock.entryPrice);
-            if (changeClass) {
-                priceCell.classList.add(changeClass);
+            const dailyChange = calcDailyChange(price, yesterdayClose);
+            if (dailyChange.classStr) {
+                priceCell.classList.add(dailyChange.classStr);
             }
 
             // Flash animation when price changes
@@ -653,6 +656,13 @@ function updatePricesInTable(prevPrices) {
 
         if (rangeCell) {
             rangeCell.innerHTML = getFiftyTwoWeekBar(price, stock.fiftyTwoWeekLow, stock.fiftyTwoWeekHigh, stock.market);
+        }
+
+        const targetArrowCell = document.querySelector(
+            `[data-target-arrow-cell="${stock.symbol}"]`
+        );
+        if (targetArrowCell) {
+            targetArrowCell.innerHTML = getTargetArrowHtml(price, stock.targetPrice);
         }
 
         const targetPriceCell = document.querySelector(
@@ -707,6 +717,16 @@ function updatePricesInTable(prevPrices) {
 }
 
 // ========== Helpers ==========
+function getTargetArrowHtml(price, targetPrice) {
+    if (price == null || targetPrice == null || targetPrice === 0) {
+        return "";
+    }
+    const isUp = price >= targetPrice;
+    const arrow = isUp ? "▲" : "▼";
+    const colorClass = isUp ? "up" : "down";
+    return `<span class="target-compare-arrow ${colorClass}" title="與目標價比較: ${isUp ? '高於或等於目標' : '低於目標'}">${arrow}</span>`;
+}
+
 function getMarketName(market) {
     switch (market) {
         case "TW": return "台股";
