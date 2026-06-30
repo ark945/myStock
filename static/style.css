@@ -528,6 +528,13 @@ body {
     font-weight: 500;
 }
 
+.market-stats-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.2px;
+    margin-left: 2px;
+}
+
 
 .table-container {
     background: var(--bg-glass);

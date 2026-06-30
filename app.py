@@ -517,7 +517,11 @@ def api_market_stats():
         and market_stats_cache.get("source_mode") == mode
         and (now - market_stats_cache["last_fetched"]) < cache_duration
     ):
-        return {"success": True, "data": market_stats_cache["data"]}
+        return {
+            "success": True,
+            "data": market_stats_cache["data"],
+            "source_mode": market_stats_cache.get("source_mode")
+        }
 
     # 1. 盤中交易時段：優先嘗試從證交所即時統計網頁 getStatis.jsp 取得最新統計
     if is_trading:
@@ -568,13 +572,18 @@ def api_market_stats():
                         market_stats_cache["data"] = stock_data
                         market_stats_cache["last_fetched"] = now
                         market_stats_cache["source_mode"] = "trading"
-                        return {"success": True, "data": stock_data}
+                        return {"success": True, "data": stock_data, "source_mode": "trading"}
         except Exception as e:
             print(f"盤中即時 getStatis 統計取得失敗: {e}")
 
         # 盤中只讀即時資料：即時來源失敗時僅回退快取，不切到盤後來源
         if market_stats_cache["data"] is not None:
-            return {"success": True, "data": market_stats_cache["data"], "cached": True}
+            return {
+                "success": True,
+                "data": market_stats_cache["data"],
+                "cached": True,
+                "source_mode": market_stats_cache.get("source_mode")
+            }
         return {"success": False, "error": "盤中即時統計暫時不可用"}
 
     # 2. 盤後時段：從 MI_INDEX 回溯取得最新營業日統計
@@ -583,7 +592,7 @@ def api_market_stats():
         market_stats_cache["data"] = stock_data
         market_stats_cache["last_fetched"] = now
         market_stats_cache["source_mode"] = "afterhours"
-        return {"success": True, "data": stock_data}
+        return {"success": True, "data": stock_data, "source_mode": "afterhours"}
         
     # 3. 備用方案：嘗試從 OpenAPI twtazu_od 取得統計
     try:
@@ -628,14 +637,19 @@ def api_market_stats():
                 market_stats_cache["data"] = stock_data
                 market_stats_cache["last_fetched"] = now
                 market_stats_cache["source_mode"] = "afterhours"
-                return {"success": True, "data": stock_data}
+                return {"success": True, "data": stock_data, "source_mode": "afterhours"}
             else:
                 return {"success": False, "error": "No data found"}
                 
     except Exception as e:
         print(f"Fetch market stats from OpenAPI fallback error: {e}")
         if market_stats_cache["data"] is not None:
-            return {"success": True, "data": market_stats_cache["data"], "cached": True}
+            return {
+                "success": True,
+                "data": market_stats_cache["data"],
+                "cached": True,
+                "source_mode": market_stats_cache.get("source_mode")
+            }
         return {"success": False, "error": str(e)}
 
 

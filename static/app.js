@@ -428,12 +428,19 @@ async function loadMarketStats() {
 
             const marketUpCount = document.getElementById("marketUpCount");
             const marketDownCount = document.getElementById("marketDownCount");
+            const marketStatsMeta = document.getElementById("marketStatsMeta");
 
             if (marketUpCount) {
                 marketUpCount.textContent = `▲ ${up} 家${limitUp > 0 ? ` (漲停 ${limitUp})` : ""}`;
             }
             if (marketDownCount) {
                 marketDownCount.textContent = `▼ ${down} 家${limitDown > 0 ? ` (跌停 ${limitDown})` : ""}`;
+            }
+            if (marketStatsMeta) {
+                const dateText = data.data.date ? data.data.date : "--";
+                const modeText = data.source_mode === "trading" ? "盤中即時" : "盤後最新營業日";
+                const cachedText = data.cached ? " (快取)" : "";
+                marketStatsMeta.textContent = `資料 ${dateText} | ${modeText}${cachedText}`;
             }
         }
     } catch (err) {
