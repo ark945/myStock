@@ -555,6 +555,71 @@ def _fetch_twse_index_quote() -> dict | None:
         return None
 
 
+def _fetch_latest_business_day_index(max_months_back: int = 3) -> dict | None:
+    """盤後模式：從 TWSE FMTQIK 取得最新營業日加權指數。"""
+
+    def _to_float(val) -> float | None:
+        if val is None:
+            return None
+        s = str(val).strip().replace(",", "")
+        if not s:
+            return None
+        try:
+            return float(s)
+        except Exception:
+            return None
+
+    today = datetime.now()
+    for m in range(max_months_back):
+        target = (today.replace(day=1) - timedelta(days=31 * m)).replace(day=1)
+        date_yyyymmdd = target.strftime("%Y%m%d")
+        url = f"https://www.twse.com.tw/exchangeReport/FMTQIK?response=json&date={date_yyyymmdd}"
+
+        try:
+            payload = json.loads(urllib.request.urlopen(url, timeout=8).read().decode('utf-8'))
+            if payload.get("stat") != "OK":
+                continue
+
+            rows = payload.get("data", [])
+            if not rows:
+                continue
+
+            # 取該月最後一筆（最新營業日）
+            last = rows[-1]
+            # ['115/06/29', '成交股數', '成交金額', '成交筆數', '發行量加權股價指數', '漲跌 點數']
+            roc_date = last[0] if len(last) > 0 else ""
+            price = _to_float(last[4] if len(last) > 4 else None)
+            change = _to_float(last[5] if len(last) > 5 else None)
+
+            if price is None or change is None:
+                continue
+
+            prev_close = price - change
+            change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
+
+            date_str = ""
+            # ROC 年/月/日 -> AD YYYY-MM-DD
+            m_date = re.match(r"(\d{2,3})/(\d{1,2})/(\d{1,2})", str(roc_date).strip())
+            if m_date:
+                ad_year = int(m_date.group(1)) + 1911
+                ad_month = int(m_date.group(2))
+                ad_day = int(m_date.group(3))
+                date_str = f"{ad_year:04d}-{ad_month:02d}-{ad_day:02d}"
+
+            return {
+                "name": "發行量加權股價指數",
+                "price": round(price, 2),
+                "change": round(change, 2),
+                "change_pct": change_pct,
+                "date": date_str,
+                "time": "收盤",
+            }
+        except Exception:
+            continue
+
+    return None
+
+
 def _fetch_realtime_stock_stats() -> dict | None:
     """盤中模式：抓取即時股票家數（上漲/下跌/平盤）。"""
     headers = {
@@ -641,7 +706,7 @@ def api_market_stats():
     # 2. 股票家數統計：從 MI_INDEX 回溯取得最新營業日資料（盤後主來源；盤中即時不符口徑時也使用）
     stock_data = _fetch_latest_business_day_stats(max_lookback_days=10)
     if stock_data:
-        index_data = _fetch_twse_index_quote()
+        index_data = _fetch_latest_business_day_index()
         market_stats_cache["data"] = stock_data
         market_stats_cache["last_fetched"] = now
         market_stats_cache["source_mode"] = "afterhours"
@@ -691,7 +756,7 @@ def api_market_stats():
                 market_stats_cache["data"] = stock_data
                 market_stats_cache["last_fetched"] = now
                 market_stats_cache["source_mode"] = "afterhours"
-                market_stats_cache["index"] = _fetch_twse_index_quote()
+                market_stats_cache["index"] = _fetch_latest_business_day_index()
                 return {
                     "success": True,
                     "data": stock_data,
