@@ -49,6 +49,14 @@ const editModalClose = document.getElementById("editModalClose");
 const editModalCancel = document.getElementById("editModalCancel");
 const editModalConfirm = document.getElementById("editModalConfirm");
 
+// Dividend modal
+const dividendModalOverlay = document.getElementById("dividendModalOverlay");
+const dividendModalClose = document.getElementById("dividendModalClose");
+const dividendModalCancel = document.getElementById("dividendModalCancel");
+const dividendModalStockInfo = document.getElementById("dividendModalStockInfo");
+const dividendModalYear = document.getElementById("dividendModalYear");
+const dividendModalBody = document.getElementById("dividendModalBody");
+
 // ========== Watchlist API (Supabase via Backend) ==========
 async function loadWatchlist() {
     try {
@@ -149,6 +157,63 @@ async function removeFromWatchlist(symbol) {
         console.error("Remove from watchlist error:", err);
         return false;
     }
+}
+
+// ========== Dividend API ==========
+async function fetchDividendInfo(symbol, market) {
+    try {
+        const res = await fetch(
+            `${API_BASE}/api/dividend-info?symbol=${encodeURIComponent(symbol)}&market=${encodeURIComponent(market || "")}`
+        );
+        return await res.json();
+    } catch (err) {
+        console.error("Fetch dividend info error:", err);
+        return { success: false, items: [], message: "尚無資訊" };
+    }
+}
+
+async function openDividendModal(symbol) {
+    const stock = watchlist.find((s) => s.symbol === symbol);
+    if (!stock) return;
+
+    dividendModalStockInfo.innerHTML = `
+        <span class="modal-stock-symbol">${escapeHtml(stock.symbol)}</span>
+        <span class="modal-stock-name">${escapeHtml(stock.name || "")}</span>
+        <span class="result-market ${stock.market.toLowerCase()}">${getMarketName(stock.market)}</span>
+    `;
+
+    const currentYear = new Date().getFullYear();
+    dividendModalYear.textContent = `${currentYear} 年度配息/配股資訊`;
+    dividendModalBody.innerHTML = `<div class="dividend-loading">載入中...</div>`;
+    dividendModalOverlay.classList.add("show");
+
+    const data = await fetchDividendInfo(stock.symbol, stock.market);
+    const items = data && Array.isArray(data.items) ? data.items : [];
+
+    if (data.success && items.length > 0) {
+        dividendModalBody.innerHTML = items
+            .map((item) => {
+                const valueText = item.type === "cash"
+                    ? `${item.value} 元/${item.unit || "每股"}`
+                    : `${item.value} (${item.unit || "比例"})`;
+                const typeClass = item.type === "cash" ? "cash" : "stock";
+                const typeName = item.type === "cash" ? "配息" : "配股/分割";
+                return `
+                    <div class="dividend-item">
+                        <span class="dividend-type ${typeClass}">${typeName}</span>
+                        <span class="dividend-date">${escapeHtml(item.date || "—")}</span>
+                        <span class="dividend-value">${escapeHtml(String(valueText))}</span>
+                    </div>
+                `;
+            })
+            .join("");
+    } else {
+        dividendModalBody.innerHTML = `<div class="dividend-empty">尚無資訊</div>`;
+    }
+}
+
+function closeDividendModal() {
+    dividendModalOverlay.classList.remove("show");
 }
 
 // ========== Search ==========
@@ -597,6 +662,7 @@ function renderTable() {
                     <span class="cell-actions">
                         <button class="btn-icon btn-sort" onclick="moveStock('${stock.symbol}', -1)" ${isFirst ? "disabled style='opacity: 0.3; cursor: not-allowed;'" : ""} title="上移">▲</button>
                         <button class="btn-icon btn-sort" onclick="moveStock('${stock.symbol}', 1)" ${isLast ? "disabled style='opacity: 0.3; cursor: not-allowed;'" : ""} title="下移">▼</button>
+                        <button class="btn-icon btn-dividend" onclick="openDividendModal('${stock.symbol}')" title="股利資訊">股利</button>
                         <button class="btn-icon" onclick="openEditModal('${stock.symbol}')" title="編輯">✏️</button>
                         <button class="btn-icon btn-delete" onclick="deleteStock('${stock.symbol}')" title="刪除">🗑️</button>
                     </span>
@@ -1161,6 +1227,13 @@ editModalCancel.addEventListener("click", closeEditModal);
 editModalConfirm.addEventListener("click", confirmEdit);
 editModalOverlay.addEventListener("click", (e) => {
     if (e.target === editModalOverlay) closeEditModal();
+});
+
+// Dividend modal
+dividendModalClose.addEventListener("click", closeDividendModal);
+dividendModalCancel.addEventListener("click", closeDividendModal);
+dividendModalOverlay.addEventListener("click", (e) => {
+    if (e.target === dividendModalOverlay) closeDividendModal();
 });
 
 // Refresh interval change

@@ -375,6 +375,26 @@
         </div>
     </div>
 
+    <!-- 股利資訊對話框 -->
+    <div class="modal-overlay" id="dividendModalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>股利資訊</h3>
+                <button class="modal-close" id="dividendModalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-stock-info" id="dividendModalStockInfo"></div>
+                <div class="dividend-year" id="dividendModalYear">當年度配息/配股資訊</div>
+                <div class="dividend-list" id="dividendModalBody">
+                    <div class="dividend-loading">載入中...</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="dividendModalCancel">關閉</button>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/app.js"></script>
 </body>
 </html>

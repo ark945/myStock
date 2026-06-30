@@ -18,6 +18,8 @@ from pydantic import BaseModel
 from typing import Optional
 from supabase import create_client, Client
 from stock_service import search_stock, get_quotes, is_taiwan_market_hours
+import twstock
+import yfinance as yf
 
 import asyncio
 from contextlib import asynccontextmanager
@@ -213,6 +215,99 @@ def api_quote(
         return {"quotes": []}
     quotes = get_quotes(symbol_list)
     return {"quotes": quotes}
+
+
+def _build_yf_symbol_candidates(symbol: str, market: Optional[str]) -> list[str]:
+    """根據市場生成可嘗試的 yfinance symbol 候選清單。"""
+    sym = symbol.strip().upper()
+    market_norm = (market or "").strip().upper()
+
+    # 台股代號優先走上市/上櫃後綴
+    if market_norm == "TW" or re.match(r"^\d{4,6}[A-Z]?$", sym):
+        if sym in twstock.codes:
+            info = twstock.codes[sym]
+            return [f"{sym}.TW"] if info.market == '上市' else [f"{sym}.TWO"]
+        return [f"{sym}.TW", f"{sym}.TWO"]
+
+    return [sym]
+
+
+@app.get("/api/dividend-info")
+def api_dividend_info(
+    symbol: str = Query(..., description="股票代號"),
+    market: Optional[str] = Query(None, description="市場代碼，例如 TW/US"),
+):
+    """取得指定股票當年度配息/配股資訊。"""
+    current_year = datetime.now().year
+    candidates = _build_yf_symbol_candidates(symbol, market)
+
+    for yf_symbol in candidates:
+        try:
+            ticker = yf.Ticker(yf_symbol)
+
+            cash_items = []
+            try:
+                dividends = ticker.dividends
+                if dividends is not None and len(dividends) > 0:
+                    for dt, val in dividends.items():
+                        if getattr(dt, "year", None) == current_year and float(val) > 0:
+                            cash_items.append({
+                                "type": "cash",
+                                "label": "配息",
+                                "date": dt.strftime('%Y-%m-%d'),
+                                "value": round(float(val), 4),
+                                "unit": "每股",
+                            })
+            except Exception:
+                pass
+
+            stock_items = []
+            try:
+                splits = ticker.splits
+                if splits is not None and len(splits) > 0:
+                    for dt, ratio in splits.items():
+                        ratio_f = float(ratio)
+                        if getattr(dt, "year", None) == current_year and ratio_f > 0 and abs(ratio_f - 1.0) > 1e-9:
+                            stock_items.append({
+                                "type": "stock",
+                                "label": "配股/分割",
+                                "date": dt.strftime('%Y-%m-%d'),
+                                "value": round(ratio_f, 4),
+                                "unit": "比例",
+                            })
+            except Exception:
+                pass
+
+            items = sorted(cash_items + stock_items, key=lambda x: x["date"], reverse=True)
+            if items:
+                return {
+                    "success": True,
+                    "symbol": symbol,
+                    "market": market or "",
+                    "year": current_year,
+                    "items": items,
+                }
+
+            # 候選可查到但當年沒有資料
+            return {
+                "success": True,
+                "symbol": symbol,
+                "market": market or "",
+                "year": current_year,
+                "items": [],
+                "message": "尚無資訊",
+            }
+        except Exception:
+            continue
+
+    return {
+        "success": True,
+        "symbol": symbol,
+        "market": market or "",
+        "year": current_year,
+        "items": [],
+        "message": "尚無資訊",
+    }
 
 
 # ==========================================
