@@ -530,9 +530,20 @@ def _fetch_twse_index_quote() -> dict | None:
         if not msg:
             return None
 
+        def _to_float(val) -> float | None:
+            if val is None:
+                return None
+            s = str(val).strip().replace(",", "")
+            if not s or s == "-":
+                return None
+            try:
+                return float(s)
+            except Exception:
+                return None
+
         row = msg[0]
-        price = _safe_float(row.get("z"))
-        prev_close = _safe_float(row.get("y"))
+        price = _to_float(row.get("z"))
+        prev_close = _to_float(row.get("y"))
 
         if price is None or prev_close is None or prev_close == 0:
             return None
