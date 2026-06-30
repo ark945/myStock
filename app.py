@@ -523,7 +523,7 @@ def api_market_stats():
             "source_mode": market_stats_cache.get("source_mode")
         }
 
-    # 1. 盤中交易時段：優先嘗試從證交所即時統計網頁 getStatis.jsp 取得最新統計
+    # 1. 盤中交易時段：先嘗試即時統計，但僅在「股票家數口徑」時採用
     if is_trading:
         try:
             cookie_jar = http.cookiejar.CookieJar()
@@ -556,37 +556,33 @@ def api_market_stats():
                     flat = int(detail.get("nw4", 0))
                     
                     if up > 0 or down > 0:
-                        date_str = res_data.get("queryTime", {}).get("sessionKey", "").replace("tse_", "")
-                        # 格式化日期為 YYYYMMDD -> YYYY-MM-DD
-                        if len(date_str) == 8:
-                            date_str = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
-                            
-                        stock_data = {
-                            "up": up,
-                            "limit_up": limit_up,
-                            "down": down,
-                            "limit_down": limit_down,
-                            "flat": flat,
-                            "date": date_str
-                        }
-                        market_stats_cache["data"] = stock_data
-                        market_stats_cache["last_fetched"] = now
-                        market_stats_cache["source_mode"] = "trading"
-                        return {"success": True, "data": stock_data, "source_mode": "trading"}
+                        # getStatis 可能回傳全有價證券統計；股票家數通常不會超過約 2000 家
+                        # 若超出範圍，視為非純股票統計，改用最新營業日股票資料。
+                        total = up + down + flat
+                        if total > 2000:
+                            print(f"盤中即時統計疑似非股票口徑 (total={total})，改用最新營業日股票家數")
+                        else:
+                            date_str = res_data.get("queryTime", {}).get("sessionKey", "").replace("tse_", "")
+                            # 格式化日期為 YYYYMMDD -> YYYY-MM-DD
+                            if len(date_str) == 8:
+                                date_str = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
+                                
+                            stock_data = {
+                                "up": up,
+                                "limit_up": limit_up,
+                                "down": down,
+                                "limit_down": limit_down,
+                                "flat": flat,
+                                "date": date_str
+                            }
+                            market_stats_cache["data"] = stock_data
+                            market_stats_cache["last_fetched"] = now
+                            market_stats_cache["source_mode"] = "trading"
+                            return {"success": True, "data": stock_data, "source_mode": "trading"}
         except Exception as e:
             print(f"盤中即時 getStatis 統計取得失敗: {e}")
 
-        # 盤中只讀即時資料：即時來源失敗時僅回退快取，不切到盤後來源
-        if market_stats_cache["data"] is not None:
-            return {
-                "success": True,
-                "data": market_stats_cache["data"],
-                "cached": True,
-                "source_mode": market_stats_cache.get("source_mode")
-            }
-        return {"success": False, "error": "盤中即時統計暫時不可用"}
-
-    # 2. 盤後時段：從 MI_INDEX 回溯取得最新營業日統計
+    # 2. 股票家數統計：從 MI_INDEX 回溯取得最新營業日資料（盤後主來源；盤中即時不符口徑時也使用）
     stock_data = _fetch_latest_business_day_stats(max_lookback_days=10)
     if stock_data:
         market_stats_cache["data"] = stock_data
