@@ -442,6 +442,24 @@ async function loadMarketStats() {
                 const cachedText = data.cached ? " (快取)" : "";
                 marketStatsMeta.textContent = `資料 ${dateText} | ${modeText}${cachedText}`;
             }
+
+            const twseIndexInfo = document.getElementById("twseIndexInfo");
+            if (twseIndexInfo) {
+                const idx = data.index;
+                if (idx && typeof idx.price === "number" && typeof idx.change === "number" && typeof idx.change_pct === "number") {
+                    const arrow = idx.change > 0 ? "▲" : idx.change < 0 ? "▼" : "•";
+                    const cls = idx.change > 0 ? "up" : idx.change < 0 ? "down" : "neutral";
+                    const absChange = Math.abs(idx.change);
+                    const absPct = Math.abs(idx.change_pct);
+                    twseIndexInfo.classList.remove("up", "down", "neutral");
+                    twseIndexInfo.classList.add(cls);
+                    twseIndexInfo.textContent = `加權 ${idx.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${arrow} ${absChange.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${idx.change > 0 ? "+" : idx.change < 0 ? "-" : ""}${absPct.toFixed(2)}%)`;
+                } else {
+                    twseIndexInfo.classList.remove("up", "down");
+                    twseIndexInfo.classList.add("neutral");
+                    twseIndexInfo.textContent = "加權指數 --";
+                }
+            }
         }
     } catch (err) {
         console.error("Load market stats error:", err);

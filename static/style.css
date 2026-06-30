@@ -480,6 +480,39 @@ body {
     color: var(--text-primary);
 }
 
+.watchlist-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.index-quick {
+    font-size: 13px;
+    padding: 5px 12px;
+    border-radius: 100px;
+    border: 1px solid var(--border-subtle);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    background: rgba(148, 163, 184, 0.08);
+    color: var(--text-secondary);
+}
+
+.index-quick.up {
+    color: var(--color-up);
+    background: var(--color-up-bg);
+    border-color: rgba(239, 68, 68, 0.25);
+}
+
+.index-quick.down {
+    color: var(--color-down);
+    background: var(--color-down-bg);
+    border-color: rgba(34, 197, 94, 0.25);
+}
+
+.index-quick.neutral {
+    color: var(--text-secondary);
+}
+
 .watchlist-stats {
     display: flex;
     align-items: center;

@@ -431,6 +431,7 @@ market_stats_cache = {
     "data": None,
     "last_fetched": 0.0,
     "source_mode": None,  # "trading" | "afterhours"
+    "index": None,
 }
 
 
@@ -503,6 +504,57 @@ def _fetch_latest_business_day_stats(max_lookback_days: int = 10) -> dict | None
     return None
 
 
+def _fetch_twse_index_quote() -> dict | None:
+    """取得台股加權指數（發行量加權股價指數）即時/最新報價。"""
+    try:
+        cookie_jar = http.cookiejar.CookieJar()
+        handler = urllib.request.HTTPCookieProcessor(cookie_jar)
+        opener = urllib.request.build_opener(handler)
+
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Referer': 'https://mis.twse.com.tw/stock/'
+        }
+
+        # 先建立會話
+        opener.open(urllib.request.Request("https://mis.twse.com.tw/stock/", headers=headers), timeout=5)
+
+        ts = int(time.time() * 1000)
+        url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_t00.tw&delay=0&_={ts}"
+        req = urllib.request.Request(url, headers=headers)
+
+        with opener.open(req, timeout=5) as response:
+            payload = json.loads(response.read().decode('utf-8'))
+
+        msg = payload.get("msgArray", [])
+        if not msg:
+            return None
+
+        row = msg[0]
+        price = _safe_float(row.get("z"))
+        prev_close = _safe_float(row.get("y"))
+
+        if price is None or prev_close is None or prev_close == 0:
+            return None
+
+        change = round(price - prev_close, 2)
+        change_pct = round((change / prev_close) * 100, 2)
+        date_str = row.get("d", "")
+        if len(date_str) == 8:
+            date_str = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
+
+        return {
+            "name": row.get("n", "加權指數"),
+            "price": price,
+            "change": change,
+            "change_pct": change_pct,
+            "date": date_str,
+            "time": row.get("t", "")
+        }
+    except Exception:
+        return None
+
+
 def _fetch_realtime_stock_stats() -> dict | None:
     """盤中模式：抓取即時股票家數（上漲/下跌/平盤）。"""
     headers = {
@@ -558,7 +610,8 @@ def api_market_stats():
         return {
             "success": True,
             "data": market_stats_cache["data"],
-            "source_mode": market_stats_cache.get("source_mode")
+            "source_mode": market_stats_cache.get("source_mode"),
+            "index": market_stats_cache.get("index")
         }
 
     # 1. 盤中交易時段：優先使用即時股票家數
@@ -566,10 +619,12 @@ def api_market_stats():
         try:
             stock_data = _fetch_realtime_stock_stats()
             if stock_data:
+                index_data = _fetch_twse_index_quote()
                 market_stats_cache["data"] = stock_data
                 market_stats_cache["last_fetched"] = now
                 market_stats_cache["source_mode"] = "trading"
-                return {"success": True, "data": stock_data, "source_mode": "trading"}
+                market_stats_cache["index"] = index_data
+                return {"success": True, "data": stock_data, "source_mode": "trading", "index": index_data}
         except Exception as e:
             print(f"盤中即時股票家數取得失敗: {e}")
 
@@ -579,16 +634,19 @@ def api_market_stats():
                 "success": True,
                 "data": market_stats_cache["data"],
                 "cached": True,
-                "source_mode": "trading"
+                "source_mode": "trading",
+                "index": market_stats_cache.get("index")
             }
 
     # 2. 股票家數統計：從 MI_INDEX 回溯取得最新營業日資料（盤後主來源；盤中即時不符口徑時也使用）
     stock_data = _fetch_latest_business_day_stats(max_lookback_days=10)
     if stock_data:
+        index_data = _fetch_twse_index_quote()
         market_stats_cache["data"] = stock_data
         market_stats_cache["last_fetched"] = now
         market_stats_cache["source_mode"] = "afterhours"
-        return {"success": True, "data": stock_data, "source_mode": "afterhours"}
+        market_stats_cache["index"] = index_data
+        return {"success": True, "data": stock_data, "source_mode": "afterhours", "index": index_data}
         
     # 3. 備用方案：嘗試從 OpenAPI twtazu_od 取得統計
     try:
@@ -633,7 +691,13 @@ def api_market_stats():
                 market_stats_cache["data"] = stock_data
                 market_stats_cache["last_fetched"] = now
                 market_stats_cache["source_mode"] = "afterhours"
-                return {"success": True, "data": stock_data, "source_mode": "afterhours"}
+                market_stats_cache["index"] = _fetch_twse_index_quote()
+                return {
+                    "success": True,
+                    "data": stock_data,
+                    "source_mode": "afterhours",
+                    "index": market_stats_cache.get("index")
+                }
             else:
                 return {"success": False, "error": "No data found"}
                 
@@ -644,7 +708,8 @@ def api_market_stats():
                 "success": True,
                 "data": market_stats_cache["data"],
                 "cached": True,
-                "source_mode": market_stats_cache.get("source_mode")
+                "source_mode": market_stats_cache.get("source_mode"),
+                "index": market_stats_cache.get("index")
             }
         return {"success": False, "error": str(e)}
 
