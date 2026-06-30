@@ -833,7 +833,7 @@ def _fetch_latest_business_day_index(max_months_back: int = 3) -> dict | None:
 
 
 def _fetch_realtime_stock_stats() -> dict | None:
-    """盤中模式：抓取即時股票家數（上漲/下跌/平盤）。"""
+    """抓取最新交易日股票家數（上漲/下跌/平盤）。"""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -859,7 +859,12 @@ def _fetch_realtime_stock_stats() -> dict | None:
     if up is None or down is None or flat is None:
         return None
 
+    # 從頁面資料時間解析實際日期，避免非交易日誤標今天
     date_str = datetime.now().strftime("%Y-%m-%d")
+    m_date = re.search(r'datatime="(\d{4}/\d{2}/\d{2})\s+\d{2}:\d{2}"', html)
+    if m_date:
+        date_str = m_date.group(1).replace("/", "-")
+
     return {
         "up": up,
         "limit_up": limit_up,
@@ -891,34 +896,34 @@ def api_market_stats():
             "index": market_stats_cache.get("index")
         }
 
-    # 1. 盤中交易時段：優先使用即時股票家數
-    if is_trading:
-        try:
-            stock_data = _fetch_realtime_stock_stats()
-            if stock_data:
-                index_data = _fetch_twse_index_quote()
-                market_stats_cache["data"] = stock_data
-                market_stats_cache["last_fetched"] = now
-                market_stats_cache["source_mode"] = "trading"
-                market_stats_cache["index"] = index_data
-                return {"success": True, "data": stock_data, "source_mode": "trading", "index": index_data}
-        except Exception as e:
-            print(f"盤中即時股票家數取得失敗: {e}")
+    # 1. 優先使用最新交易日來源（盤中/盤後皆可）
+    try:
+        stock_data = _fetch_realtime_stock_stats()
+        if stock_data:
+            index_data = _fetch_twse_index_quote() or _fetch_latest_business_day_index()
+            source_mode = "trading" if is_trading else "afterhours"
+            market_stats_cache["data"] = stock_data
+            market_stats_cache["last_fetched"] = now
+            market_stats_cache["source_mode"] = source_mode
+            market_stats_cache["index"] = index_data
+            return {"success": True, "data": stock_data, "source_mode": source_mode, "index": index_data}
+    except Exception as e:
+        print(f"最新交易日股票家數取得失敗: {e}")
 
-        # 盤中來源失敗時，優先回傳同模式快取
-        if market_stats_cache["data"] is not None and market_stats_cache.get("source_mode") == "trading":
-            return {
-                "success": True,
-                "data": market_stats_cache["data"],
-                "cached": True,
-                "source_mode": "trading",
-                "index": market_stats_cache.get("index")
-            }
+    # 同模式來源失敗時，先回傳同模式快取
+    if market_stats_cache["data"] is not None and market_stats_cache.get("source_mode") == mode:
+        return {
+            "success": True,
+            "data": market_stats_cache["data"],
+            "cached": True,
+            "source_mode": mode,
+            "index": market_stats_cache.get("index")
+        }
 
     # 2. 股票家數統計：從 MI_INDEX 回溯取得最新營業日資料（盤後主來源；盤中即時不符口徑時也使用）
     stock_data = _fetch_latest_business_day_stats(max_lookback_days=10)
     if stock_data:
-        index_data = _fetch_latest_business_day_index()
+        index_data = _fetch_twse_index_quote() or _fetch_latest_business_day_index()
         market_stats_cache["data"] = stock_data
         market_stats_cache["last_fetched"] = now
         market_stats_cache["source_mode"] = "afterhours"
@@ -968,7 +973,7 @@ def api_market_stats():
                 market_stats_cache["data"] = stock_data
                 market_stats_cache["last_fetched"] = now
                 market_stats_cache["source_mode"] = "afterhours"
-                market_stats_cache["index"] = _fetch_latest_business_day_index()
+                market_stats_cache["index"] = _fetch_twse_index_quote() or _fetch_latest_business_day_index()
                 return {
                     "success": True,
                     "data": stock_data,
