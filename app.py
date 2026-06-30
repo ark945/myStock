@@ -502,6 +502,44 @@ def _fetch_latest_business_day_stats(max_lookback_days: int = 10) -> dict | None
 
     return None
 
+
+def _fetch_realtime_stock_stats() -> dict | None:
+    """盤中模式：抓取即時股票家數（上漲/下跌/平盤）。"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+    }
+
+    req = urllib.request.Request("https://tw.stock.yahoo.com/quote/%5ETWII", headers=headers)
+    with urllib.request.urlopen(req, timeout=8) as response:
+        html = response.read().decode('utf-8', 'ignore')
+
+    def _extract_int(key: str) -> int | None:
+        m = re.search(rf'"{key}":\{{"raw":"?(\d+)', html)
+        return int(m.group(1)) if m else None
+
+    up = _extract_int("upCount")
+    down = _extract_int("downCount")
+    flat = _extract_int("unchangeCount")
+    limit_up = _extract_int("limitUpCount") or 0
+    limit_down = _extract_int("limitDownCount") or 0
+
+    if up is None or down is None or flat is None:
+        return None
+
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    return {
+        "up": up,
+        "limit_up": limit_up,
+        "down": down,
+        "limit_down": limit_down,
+        "flat": flat,
+        "date": date_str,
+    }
+
 @app.get("/api/market-stats")
 def api_market_stats():
     """取得台股大盤（全市場）漲跌家數統計（帶有快取）"""
@@ -523,64 +561,26 @@ def api_market_stats():
             "source_mode": market_stats_cache.get("source_mode")
         }
 
-    # 1. 盤中交易時段：先嘗試即時統計，但僅在「股票家數口徑」時採用
+    # 1. 盤中交易時段：優先使用即時股票家數
     if is_trading:
         try:
-            cookie_jar = http.cookiejar.CookieJar()
-            handler = urllib.request.HTTPCookieProcessor(cookie_jar)
-            opener = urllib.request.build_opener(handler)
-            
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            }
-            
-            # 存取基本市況報導首頁以初始化 Cookie 會話
-            req1 = urllib.request.Request("https://mis.twse.com.tw/stock/", headers=headers)
-            opener.open(req1, timeout=5)
-            
-            # 取得即時統計
-            headers['Referer'] = 'https://mis.twse.com.tw/stock/'
-            ts = int(time.time() * 1000)
-            url = f"https://mis.twse.com.tw/stock/api/getStatis.jsp?ex=tse&delay=0&_={ts}"
-            req2 = urllib.request.Request(url, headers=headers)
-            
-            with opener.open(req2, timeout=5) as response:
-                content = response.read().decode('utf-8')
-                res_data = json.loads(content)
-                if res_data.get("rtcode") == "0000":
-                    detail = res_data.get("detail", {})
-                    up = int(detail.get("nv", 0))
-                    down = int(detail.get("nr", 0))
-                    limit_up = int(detail.get("nu2", 0))
-                    limit_down = int(detail.get("nu4", 0))
-                    flat = int(detail.get("nw4", 0))
-                    
-                    if up > 0 or down > 0:
-                        # getStatis 可能回傳全有價證券統計；股票家數通常不會超過約 2000 家
-                        # 若超出範圍，視為非純股票統計，改用最新營業日股票資料。
-                        total = up + down + flat
-                        if total > 2000:
-                            print(f"盤中即時統計疑似非股票口徑 (total={total})，改用最新營業日股票家數")
-                        else:
-                            date_str = res_data.get("queryTime", {}).get("sessionKey", "").replace("tse_", "")
-                            # 格式化日期為 YYYYMMDD -> YYYY-MM-DD
-                            if len(date_str) == 8:
-                                date_str = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
-                                
-                            stock_data = {
-                                "up": up,
-                                "limit_up": limit_up,
-                                "down": down,
-                                "limit_down": limit_down,
-                                "flat": flat,
-                                "date": date_str
-                            }
-                            market_stats_cache["data"] = stock_data
-                            market_stats_cache["last_fetched"] = now
-                            market_stats_cache["source_mode"] = "trading"
-                            return {"success": True, "data": stock_data, "source_mode": "trading"}
+            stock_data = _fetch_realtime_stock_stats()
+            if stock_data:
+                market_stats_cache["data"] = stock_data
+                market_stats_cache["last_fetched"] = now
+                market_stats_cache["source_mode"] = "trading"
+                return {"success": True, "data": stock_data, "source_mode": "trading"}
         except Exception as e:
-            print(f"盤中即時 getStatis 統計取得失敗: {e}")
+            print(f"盤中即時股票家數取得失敗: {e}")
+
+        # 盤中來源失敗時，優先回傳同模式快取
+        if market_stats_cache["data"] is not None and market_stats_cache.get("source_mode") == "trading":
+            return {
+                "success": True,
+                "data": market_stats_cache["data"],
+                "cached": True,
+                "source_mode": "trading"
+            }
 
     # 2. 股票家數統計：從 MI_INDEX 回溯取得最新營業日資料（盤後主來源；盤中即時不符口徑時也使用）
     stock_data = _fetch_latest_business_day_stats(max_lookback_days=10)
