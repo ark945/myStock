@@ -9,13 +9,14 @@ import json
 import time
 import urllib.request
 import re
+import http.cookiejar
 from fastapi import FastAPI, Query, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
 from supabase import create_client, Client
-from stock_service import search_stock, get_quotes
+from stock_service import search_stock, get_quotes, is_taiwan_market_hours
 
 import asyncio
 from contextlib import asynccontextmanager
@@ -435,11 +436,66 @@ def api_market_stats():
     """取得台股大盤（全市場）漲跌家數統計（帶有快取）"""
     global market_stats_cache
     now = time.time()
-    # Cache for 10 minutes (600 seconds)
-    if market_stats_cache["data"] is not None and (now - market_stats_cache["last_fetched"]) < 600:
+    
+    is_trading = is_taiwan_market_hours()
+    cache_duration = 30 if is_trading else 600  # 盤中快取 30 秒，盤後快取 10 分鐘
+    
+    if market_stats_cache["data"] is not None and (now - market_stats_cache["last_fetched"]) < cache_duration:
         return {"success": True, "data": market_stats_cache["data"]}
-        
-    # 1. 優先嘗試從證交所官網 MI_INDEX 取得當日最新即時統計
+
+    # 1. 盤中交易時段：優先嘗試從證交所即時統計網頁 getStatis.jsp 取得最新統計
+    if is_trading:
+        try:
+            cookie_jar = http.cookiejar.CookieJar()
+            handler = urllib.request.HTTPCookieProcessor(cookie_jar)
+            opener = urllib.request.build_opener(handler)
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            }
+            
+            # 存取基本市況報導首頁以初始化 Cookie 會話
+            req1 = urllib.request.Request("https://mis.twse.com.tw/stock/", headers=headers)
+            opener.open(req1, timeout=5)
+            
+            # 取得即時統計
+            headers['Referer'] = 'https://mis.twse.com.tw/stock/'
+            ts = int(time.time() * 1000)
+            url = f"https://mis.twse.com.tw/stock/api/getStatis.jsp?ex=tse&delay=0&_={ts}"
+            req2 = urllib.request.Request(url, headers=headers)
+            
+            with opener.open(req2, timeout=5) as response:
+                content = response.read().decode('utf-8')
+                res_data = json.loads(content)
+                if res_data.get("rtcode") == "0000":
+                    detail = res_data.get("detail", {})
+                    up = int(detail.get("nv", 0))
+                    down = int(detail.get("nr", 0))
+                    limit_up = int(detail.get("nu2", 0))
+                    limit_down = int(detail.get("nu4", 0))
+                    flat = int(detail.get("nw4", 0))
+                    
+                    if up > 0 or down > 0:
+                        date_str = res_data.get("queryTime", {}).get("sessionKey", "").replace("tse_", "")
+                        # 格式化日期為 YYYYMMDD -> YYYY-MM-DD
+                        if len(date_str) == 8:
+                            date_str = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
+                            
+                        stock_data = {
+                            "up": up,
+                            "limit_up": limit_up,
+                            "down": down,
+                            "limit_down": limit_down,
+                            "flat": flat,
+                            "date": date_str
+                        }
+                        market_stats_cache["data"] = stock_data
+                        market_stats_cache["last_fetched"] = now
+                        return {"success": True, "data": stock_data}
+        except Exception as e:
+            print(f"盤中即時 getStatis 統計取得失敗: {e}. 將降級使用 MI_INDEX / OpenAPI...")
+
+    # 2. 盤後時段（或即時 API 失敗時）：嘗試從證交所官網 MI_INDEX 取得當日統計
     try:
         url = "https://www.twse.com.tw/exchangeReport/MI_INDEX?response=json&type=MS"
         req = urllib.request.Request(
@@ -479,14 +535,18 @@ def api_market_stats():
                         break
                 
                 if found and stock_data:
-                    stock_data["date"] = data.get("date", "")
+                    # 格式化日期格式 YYYYMMDD -> YYYY-MM-DD
+                    date_str = data.get("date", "")
+                    if len(date_str) == 8:
+                        date_str = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
+                    stock_data["date"] = date_str
                     market_stats_cache["data"] = stock_data
                     market_stats_cache["last_fetched"] = now
                     return {"success": True, "data": stock_data}
     except Exception as e:
         print(f"Fetch market stats from MI_INDEX failed: {e}. Trying fallback to OpenAPI...")
         
-    # 2. Fallback: 嘗試從原本的 OpenAPI twtazu_od 取得統計
+    # 3. 備用方案：嘗試從 OpenAPI twtazu_od 取得統計
     try:
         url = "https://openapi.twse.com.tw/v1/opendata/twtazu_od"
         req = urllib.request.Request(
@@ -521,6 +581,11 @@ def api_market_stats():
                 }
             
             if stock_data:
+                # 格式化日期格式 YYYYMMDD -> YYYY-MM-DD
+                date_str = stock_data.get("date", "")
+                if len(date_str) == 8:
+                    date_str = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
+                stock_data["date"] = date_str
                 market_stats_cache["data"] = stock_data
                 market_stats_cache["last_fetched"] = now
                 return {"success": True, "data": stock_data}
