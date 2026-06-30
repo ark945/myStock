@@ -232,6 +232,86 @@ def _build_yf_symbol_candidates(symbol: str, market: Optional[str]) -> list[str]
     return [sym]
 
 
+def _strip_tags(text: str) -> str:
+    return re.sub(r"<[^>]+>", "", text).strip()
+
+
+def _to_float_or_none(text: str) -> Optional[float]:
+    s = (text or "").strip().replace(",", "")
+    if not s or s == "-":
+        return None
+    try:
+        return float(s)
+    except Exception:
+        return None
+
+
+def _fetch_tw_yahoo_announced_dividend(symbol: str, year: int) -> list[dict]:
+    """從 Yahoo 台股股利頁解析當年度已公告配息/配股資訊。"""
+    sym = symbol.strip().upper()
+    if not sym.endswith(".TW") and not sym.endswith(".TWO"):
+        # 預設台股先嘗試上市
+        sym = f"{sym}.TW"
+
+    url = f"https://tw.stock.yahoo.com/quote/{sym}/dividend"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7'
+    }
+
+    req = urllib.request.Request(url, headers=headers)
+    html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', 'ignore')
+
+    row_blocks = re.findall(r'<li class="List\(n\)"><div.*?</div></li>', html, flags=re.DOTALL)
+    if not row_blocks:
+        return []
+
+    items: list[dict] = []
+    for block in row_blocks:
+        # 每列欄位依序：發放期間, 所屬期間, 現金股利, 股票股利, 現金殖利率, 除息日昨收價, 除息日, 除權日, 現金股利發放日, 股票股利發放日, 填息天數
+        cols = [_strip_tags(x) for x in re.findall(r'<div class="[^"]*">(.*?)</div>', block, flags=re.DOTALL)]
+        cols = [c for c in cols if c != ""]
+        if len(cols) < 8:
+            continue
+
+        payout_year_text = cols[0]
+        m_year = re.match(r"^(\d{4})$", payout_year_text)
+        if not m_year:
+            continue
+        payout_year = int(m_year.group(1))
+        if payout_year != year:
+            continue
+
+        cash_div = _to_float_or_none(cols[2] if len(cols) > 2 else "")
+        stock_div = _to_float_or_none(cols[3] if len(cols) > 3 else "")
+        ex_date = (cols[6] if len(cols) > 6 else "").replace("/", "-")
+        right_date = (cols[7] if len(cols) > 7 else "").replace("/", "-")
+        cash_pay_date = (cols[8] if len(cols) > 8 else "").replace("/", "-")
+        stock_pay_date = (cols[9] if len(cols) > 9 else "").replace("/", "-")
+
+        if cash_div is not None and cash_div > 0:
+            items.append({
+                "type": "cash",
+                "label": "配息(已公告)",
+                "date": ex_date if ex_date and ex_date != "-" else (cash_pay_date if cash_pay_date and cash_pay_date != "-" else f"{year}-01-01"),
+                "value": round(cash_div, 4),
+                "unit": "每股",
+                "source": "announcement",
+            })
+
+        if stock_div is not None and stock_div > 0:
+            items.append({
+                "type": "stock",
+                "label": "配股(已公告)",
+                "date": right_date if right_date and right_date != "-" else (stock_pay_date if stock_pay_date and stock_pay_date != "-" else f"{year}-01-01"),
+                "value": round(stock_div, 4),
+                "unit": "每股",
+                "source": "announcement",
+            })
+
+    return sorted(items, key=lambda x: x["date"], reverse=True)
+
+
 @app.get("/api/dividend-info")
 def api_dividend_info(
     symbol: str = Query(..., description="股票代號"),
@@ -288,7 +368,18 @@ def api_dividend_info(
                     "items": items,
                 }
 
-            # 候選可查到但當年沒有資料
+            # 候選可查到但當年沒有事件流資料：台股嘗試抓已公告資料
+            if (market or "").upper() == "TW":
+                announced = _fetch_tw_yahoo_announced_dividend(yf_symbol, current_year)
+                if announced:
+                    return {
+                        "success": True,
+                        "symbol": symbol,
+                        "market": market or "",
+                        "year": current_year,
+                        "items": announced,
+                    }
+
             return {
                 "success": True,
                 "symbol": symbol,
@@ -299,6 +390,21 @@ def api_dividend_info(
             }
         except Exception:
             continue
+
+    if (market or "").upper() == "TW":
+        for yf_symbol in candidates:
+            try:
+                announced = _fetch_tw_yahoo_announced_dividend(yf_symbol, current_year)
+                if announced:
+                    return {
+                        "success": True,
+                        "symbol": symbol,
+                        "market": market or "",
+                        "year": current_year,
+                        "items": announced,
+                    }
+            except Exception:
+                continue
 
     return {
         "success": True,
