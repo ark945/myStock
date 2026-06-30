@@ -9,6 +9,7 @@ import json
 import time
 import urllib.request
 import re
+from datetime import datetime, timedelta
 import http.cookiejar
 from fastapi import FastAPI, Query, Body
 from fastapi.staticfiles import StaticFiles
@@ -428,8 +429,78 @@ def api_market_futures():
 # --- Market Stats Cache ---
 market_stats_cache = {
     "data": None,
-    "last_fetched": 0.0
+    "last_fetched": 0.0,
+    "source_mode": None,  # "trading" | "afterhours"
 }
+
+
+def _parse_mi_index_stock_stats(data: dict) -> dict | None:
+    """從 MI_INDEX 回應解析漲跌家數。"""
+    if data.get("stat") != "OK":
+        return None
+
+    tables = data.get("tables", [])
+    stock_data = {}
+    found = False
+    for table in tables:
+        if table.get("title") == "漲跌證券數合計":
+            found = True
+            rows = table.get("data", [])
+            for r in rows:
+                if len(r) < 3:
+                    continue
+                type_name = r[0]
+                stock_str = r[2]  # 股票欄位
+
+                m = re.match(r"([\d,]+)(?:\((\d+)\))?", stock_str.strip())
+                if not m:
+                    continue
+
+                val = int(m.group(1).replace(",", ""))
+                limit_val = int(m.group(2)) if m.group(2) else 0
+
+                if "上漲" in type_name:
+                    stock_data["up"] = val
+                    stock_data["limit_up"] = limit_val
+                elif "下跌" in type_name:
+                    stock_data["down"] = val
+                    stock_data["limit_down"] = limit_val
+                elif "持平" in type_name:
+                    stock_data["flat"] = val
+            break
+
+    if not found or not stock_data:
+        return None
+
+    date_str = data.get("date", "")
+    if len(date_str) == 8:
+        date_str = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
+    stock_data["date"] = date_str
+    return stock_data
+
+
+def _fetch_latest_business_day_stats(max_lookback_days: int = 10) -> dict | None:
+    """盤後模式：往前回溯到最近營業日並抓取 MI_INDEX 統計。"""
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    today = datetime.now()
+
+    for delta in range(max_lookback_days + 1):
+        target_day = today - timedelta(days=delta)
+        date_yyyymmdd = target_day.strftime("%Y%m%d")
+        url = f"https://www.twse.com.tw/exchangeReport/MI_INDEX?response=json&type=MS&date={date_yyyymmdd}"
+        req = urllib.request.Request(url, headers=headers)
+
+        try:
+            with urllib.request.urlopen(req, timeout=5) as response:
+                content = response.read()
+                data = json.loads(content.decode('utf-8'))
+                parsed = _parse_mi_index_stock_stats(data)
+                if parsed:
+                    return parsed
+        except Exception:
+            continue
+
+    return None
 
 @app.get("/api/market-stats")
 def api_market_stats():
@@ -438,9 +509,14 @@ def api_market_stats():
     now = time.time()
     
     is_trading = is_taiwan_market_hours()
+    mode = "trading" if is_trading else "afterhours"
     cache_duration = 30 if is_trading else 600  # 盤中快取 30 秒，盤後快取 10 分鐘
     
-    if market_stats_cache["data"] is not None and (now - market_stats_cache["last_fetched"]) < cache_duration:
+    if (
+        market_stats_cache["data"] is not None
+        and market_stats_cache.get("source_mode") == mode
+        and (now - market_stats_cache["last_fetched"]) < cache_duration
+    ):
         return {"success": True, "data": market_stats_cache["data"]}
 
     # 1. 盤中交易時段：優先嘗試從證交所即時統計網頁 getStatis.jsp 取得最新統計
@@ -491,60 +567,23 @@ def api_market_stats():
                         }
                         market_stats_cache["data"] = stock_data
                         market_stats_cache["last_fetched"] = now
+                        market_stats_cache["source_mode"] = "trading"
                         return {"success": True, "data": stock_data}
         except Exception as e:
-            print(f"盤中即時 getStatis 統計取得失敗: {e}. 將降級使用 MI_INDEX / OpenAPI...")
+            print(f"盤中即時 getStatis 統計取得失敗: {e}")
 
-    # 2. 盤後時段（或即時 API 失敗時）：嘗試從證交所官網 MI_INDEX 取得當日統計
-    try:
-        url = "https://www.twse.com.tw/exchangeReport/MI_INDEX?response=json&type=MS"
-        req = urllib.request.Request(
-            url, 
-            headers={'User-Agent': 'Mozilla/5.0'}
-        )
-        with urllib.request.urlopen(req, timeout=5) as response:
-            content = response.read()
-            data = json.loads(content.decode('utf-8'))
-            if data.get("stat") == "OK":
-                tables = data.get("tables", [])
-                stock_data = {}
-                found = False
-                for table in tables:
-                    if table.get("title") == "漲跌證券數合計":
-                        found = True
-                        rows = table.get("data", [])
-                        for r in rows:
-                            if len(r) < 3:
-                                continue
-                            type_name = r[0]
-                            stock_str = r[2] # 股票欄位
-                            
-                            m = re.match(r"([\d,]+)(?:\((\d+)\))?", stock_str.strip())
-                            if m:
-                                val = int(m.group(1).replace(",", ""))
-                                limit_val = int(m.group(2)) if m.group(2) else 0
-                                
-                                if "上漲" in type_name:
-                                    stock_data["up"] = val
-                                    stock_data["limit_up"] = limit_val
-                                elif "下跌" in type_name:
-                                    stock_data["down"] = val
-                                    stock_data["limit_down"] = limit_val
-                                elif "持平" in type_name:
-                                    stock_data["flat"] = val
-                        break
-                
-                if found and stock_data:
-                    # 格式化日期格式 YYYYMMDD -> YYYY-MM-DD
-                    date_str = data.get("date", "")
-                    if len(date_str) == 8:
-                        date_str = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
-                    stock_data["date"] = date_str
-                    market_stats_cache["data"] = stock_data
-                    market_stats_cache["last_fetched"] = now
-                    return {"success": True, "data": stock_data}
-    except Exception as e:
-        print(f"Fetch market stats from MI_INDEX failed: {e}. Trying fallback to OpenAPI...")
+        # 盤中只讀即時資料：即時來源失敗時僅回退快取，不切到盤後來源
+        if market_stats_cache["data"] is not None:
+            return {"success": True, "data": market_stats_cache["data"], "cached": True}
+        return {"success": False, "error": "盤中即時統計暫時不可用"}
+
+    # 2. 盤後時段：從 MI_INDEX 回溯取得最新營業日統計
+    stock_data = _fetch_latest_business_day_stats(max_lookback_days=10)
+    if stock_data:
+        market_stats_cache["data"] = stock_data
+        market_stats_cache["last_fetched"] = now
+        market_stats_cache["source_mode"] = "afterhours"
+        return {"success": True, "data": stock_data}
         
     # 3. 備用方案：嘗試從 OpenAPI twtazu_od 取得統計
     try:
@@ -588,6 +627,7 @@ def api_market_stats():
                 stock_data["date"] = date_str
                 market_stats_cache["data"] = stock_data
                 market_stats_cache["last_fetched"] = now
+                market_stats_cache["source_mode"] = "afterhours"
                 return {"success": True, "data": stock_data}
             else:
                 return {"success": False, "error": "No data found"}
