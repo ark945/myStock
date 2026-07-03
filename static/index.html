@@ -394,6 +394,76 @@
             </div>
         </div>
     </div>
+    <!-- 籌碼資訊對話框 -->
+    <div class="modal-overlay" id="chipModalOverlay">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3>籌碼分布 (前一營業日)</h3>
+                <button class="modal-close" id="chipModalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-stock-info" id="chipModalStockInfo"></div>
+                <div class="chip-date" id="chipModalDate">資料日期: —</div>
+                
+                <!-- 主力進出 -->
+                <div class="chip-section-title">👤 主力進出 (前 15 大分點)</div>
+                <div class="chip-summary-grid" id="chipMajorSummary">
+                    <!-- 動態填充 -->
+                </div>
+                
+                <!-- 三大法人 -->
+                <div class="chip-section-title">🏛️ 三大法人買賣超</div>
+                <div class="chip-table-container">
+                    <table class="chip-table">
+                        <thead>
+                            <tr>
+                                <th>投資者類別</th>
+                                <th>買進 (張)</th>
+                                <th>賣出 (張)</th>
+                                <th>淨買賣超 (張)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="chipInstitutionBody">
+                            <!-- 動態填充 -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 融資融券與集保大戶 -->
+                <div class="chip-row-grid">
+                    <!-- 融資融券 -->
+                    <div class="chip-section-col">
+                        <div class="chip-section-title" style="margin-top: 15px;">📊 信用交易 (融資融券)</div>
+                        <div class="chip-table-container">
+                            <table class="chip-table chip-table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>項目</th>
+                                        <th>餘額 (張)</th>
+                                        <th>單日增減 (張)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="chipMarginBody">
+                                    <!-- 動態填充 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- 大戶持股 -->
+                    <div class="chip-section-col">
+                        <div class="chip-section-title" style="margin-top: 15px;">👑 集保大戶持股 (每週)</div>
+                        <div class="chip-holders-container" id="chipHoldersContainer">
+                            <!-- 綜合資訊卡片，動態填充 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="chipModalCancel">關閉</button>
+            </div>
+        </div>
+    </div>
 
     <script src="/static/app.js"></script>
 </body>

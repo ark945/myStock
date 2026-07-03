@@ -416,6 +416,299 @@ def api_dividend_info(
     }
 
 
+# --- Chip Info Cache ---
+_chip_info_cache = {}  # 格式: { symbol: { "data": dict, "fetched_at": float_timestamp } }
+
+def _fetch_yahoo_html(url: str) -> str:
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7'
+    }
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            return response.read().decode('utf-8', 'ignore')
+    except Exception as e:
+        print(f"Error fetching URL {url}: {e}")
+        return ""
+
+def _extract_yahoo_preloaded_state(html: str) -> dict:
+    idx = html.find("root.App.main = ")
+    if idx == -1:
+        return {}
+    start_json = idx + len("root.App.main = ")
+    brace_count = 0
+    end_json = -1
+    for i in range(start_json, len(html)):
+        char = html[i]
+        if char == '{':
+            brace_count += 1
+        elif char == '}':
+            brace_count -= 1
+            if brace_count == 0:
+                end_json = i + 1
+                break
+    if end_json == -1:
+        return {}
+    json_str = html[start_json:end_json]
+    # Replace JavaScript undefined and NaN
+    json_str = json_str.replace(":undefined", ":null").replace(": undefined", ": null").replace(":NaN", ":null").replace(": NaN", ": null")
+    try:
+        return json.loads(json_str)
+    except Exception as e:
+        print(f"Error parsing Yahoo JSON: {e}")
+        return {}
+
+def _safe_int(val) -> Optional[int]:
+    if val is None:
+        return None
+    if isinstance(val, (int, float)):
+        return int(val)
+    s = str(val).strip().replace(",", "")
+    if not s or s == "-":
+        return None
+    try:
+        return int(s)
+    except Exception:
+        try:
+            return int(float(s))
+        except Exception:
+            return None
+
+def _calc_consecutive_days(trades: list, key: str) -> int:
+    """計算特定法人（外資/投信/自營商）的連續買超（正數）或賣超（負數）天數"""
+    if not trades:
+        return 0
+    consecutive_count = 0
+    is_buying = None
+    for item in trades:
+        diff = item.get(key)
+        if diff is None or diff == 0:
+            break
+        if is_buying is None:
+            is_buying = (diff > 0)
+        if (diff > 0) == is_buying:
+            consecutive_count += 1
+        else:
+            break
+    return consecutive_count if is_buying else -consecutive_count
+
+@app.get("/api/chip-info")
+async def api_chip_info(
+    symbol: str = Query(..., description="股票代號"),
+    market: Optional[str] = Query(None, description="市場代碼，例如 TW/US"),
+):
+    """取得指定台股前一營業日的籌碼分布（包含主力、三大法人、融資融券與大戶持股）"""
+    sym = symbol.strip().upper() if isinstance(symbol, str) else ""
+    market_norm = market.strip().upper() if isinstance(market, str) else ""
+
+    # 籌碼分布目前僅支援台股
+    is_tw = (market_norm == "TW") or bool(re.match(r"^\d{4,6}", sym))
+    if not is_tw:
+        return {"success": False, "message": "籌碼功能目前僅支援台股 (TW) 市場"}
+
+    # 確保代號有合適的台股後綴
+    if not sym.endswith(".TW") and not sym.endswith(".TWO"):
+        if sym in twstock.codes:
+            info = twstock.codes[sym]
+            sym = f"{sym}.TW" if info.market == '上市' else f"{sym}.TWO"
+        else:
+            sym = f"{sym}.TW"
+
+    # 檢查快取
+    now = time.time()
+    cached = _chip_info_cache.get(sym)
+    if cached and (now - cached["fetched_at"]) < 3600:
+        return cached["data"]
+
+    # 並行抓取 4 個網頁
+    async def fetch_one(url):
+        return await asyncio.to_thread(_fetch_yahoo_html, url)
+
+    urls = [
+        f"https://tw.stock.yahoo.com/quote/{sym}/broker-trading",
+        f"https://tw.stock.yahoo.com/quote/{sym}/institutional-trading",
+        f"https://tw.stock.yahoo.com/quote/{sym}/margin",
+        f"https://tw.stock.yahoo.com/quote/{sym}/major-holders"
+    ]
+    
+    html_broker, html_inst, html_margin, html_holders = await asyncio.gather(
+        fetch_one(urls[0]),
+        fetch_one(urls[1]),
+        fetch_one(urls[2]),
+        fetch_one(urls[3])
+    )
+
+    # A. 主力進出 (Broker Trading)
+    state_broker = _extract_yahoo_preloaded_state(html_broker)
+    quote_chip_store_broker = state_broker.get("context", {}).get("dispatcher", {}).get("stores", {}).get("QuoteChipStore", {})
+    broker_trades = quote_chip_store_broker.get("brokerTrades", {}).get("data", {})
+
+    # B. 三大法人 (Institutional Trading)
+    state_inst = _extract_yahoo_preloaded_state(html_inst)
+    quote_chip_store_inst = state_inst.get("context", {}).get("dispatcher", {}).get("stores", {}).get("QuoteChipStore", {})
+    
+    summary_data = {}
+    refreshed_date = ""
+    trades_list = []
+    
+    # 搜尋三大法人動態 Key
+    for k, v in quote_chip_store_inst.items():
+        if k.startswith("institutionBuySellSummary-") and (sym in k):
+            summary_data = v.get("data", {})
+            refreshed_date = summary_data.get("refreshedTs", "")
+        if k.startswith("institutionBuySellByDay-") and (sym in k):
+            trades_list = v.get("data", {}).get("trades", [])
+
+    if not summary_data and trades_list:
+        first_trade = trades_list[0]
+        summary_data = {
+            "list": [first_trade],
+            "refreshedTs": first_trade.get("date", "")
+        }
+        refreshed_date = first_trade.get("date", "")
+
+    # C. 融資融券 (Margin Trading)
+    state_margin = _extract_yahoo_preloaded_state(html_margin)
+    quote_chip_store_margin = state_margin.get("context", {}).get("dispatcher", {}).get("stores", {}).get("QuoteChipStore", {})
+    
+    margin_sum_data = {}
+    for k, v in quote_chip_store_margin.items():
+        if k.startswith("marginSummary-") and (sym in k):
+            m_list = v.get("data", {}).get("list", [])
+            if m_list:
+                margin_sum_data = m_list[0]
+            break
+
+    # D. 大戶持股 (Major Holders)
+    state_holders = _extract_yahoo_preloaded_state(html_holders)
+    quote_chip_store_holders = state_holders.get("context", {}).get("dispatcher", {}).get("stores", {}).get("QuoteChipStore", {})
+    mh_list = quote_chip_store_holders.get("majorHolders", {}).get("data", {}).get("list", [])
+
+    # 1. 整理主力數據
+    major_data = None
+    if broker_trades:
+        major_data = {
+            "buy": broker_trades.get("totalOverbuyVolK"),
+            "sell": broker_trades.get("totalOversellVolK"),
+            "net": broker_trades.get("totalDifferenceVolK"),
+            "ratio": _to_float_or_none(broker_trades.get("tradeVolumeRate"))
+        }
+        if refreshed_date == "":
+            refreshed_date = broker_trades.get("date", "")
+
+    # 2. 整理三大法人與連續買賣超天數
+    inst_list = summary_data.get("list", [])
+    inst_summary = None
+    if inst_list:
+        item = inst_list[0]
+        inst_summary = {
+            "foreign": {
+                "buy": item.get("foreignBuyVolK"),
+                "sell": item.get("foreignSellVolK"),
+                "net": item.get("foreignDiffVolK"),
+                "consecutive": _calc_consecutive_days(trades_list, "foreignDiffVolK")
+            },
+            "trust": {
+                "buy": item.get("investmentTrustBuyVolK"),
+                "sell": item.get("investmentTrustSellVolK"),
+                "net": item.get("investmentTrustDiffVolK"),
+                "consecutive": _calc_consecutive_days(trades_list, "investmentTrustDiffVolK")
+            },
+            "dealer": {
+                "buy": item.get("dealerBuyVolK"),
+                "sell": item.get("dealerSellVolK"),
+                "net": item.get("dealerDiffVolK"),
+                "consecutive": _calc_consecutive_days(trades_list, "dealerDiffVolK")
+            },
+            "total": {
+                "buy": item.get("totalBuyVolK"),
+                "sell": item.get("totalSellVolK"),
+                "net": item.get("totalDiffVolK")
+            }
+        }
+
+    # 3. 整理融資融券數據
+    margin_data = None
+    if margin_sum_data:
+        margin_data = {
+            "date": margin_sum_data.get("date"),
+            "financing": {
+                "total": _safe_int(margin_sum_data.get("financingTotalVolK")),
+                "diff": _safe_int(margin_sum_data.get("financingDiffK")),
+                "buy": _safe_int(margin_sum_data.get("financingBuyVolK")),
+                "sell": _safe_int(margin_sum_data.get("financingSellVolK"))
+            },
+            "short": {
+                "total": _safe_int(margin_sum_data.get("shortTotalVolK")),
+                "diff": _safe_int(margin_sum_data.get("shortDiffK")),
+                "buy": _safe_int(margin_sum_data.get("shortBuyVolK")),
+                "sell": _safe_int(margin_sum_data.get("shortSellVolK"))
+            },
+            "ratio": _to_float_or_none(margin_sum_data.get("shortFinancingPercent"))
+        }
+
+    # 4. 整理大戶持股比例與人數（自動回溯尋找非空值）
+    holders_data = None
+    if mh_list:
+        latest_item = None
+        prev_item = None
+        for i, item in enumerate(mh_list):
+            if item.get("mainHoldPercent") is not None:
+                latest_item = item
+                for j in range(i + 1, len(mh_list)):
+                    if mh_list[j].get("mainHoldPercent") is not None:
+                        prev_item = mh_list[j]
+                        break
+                break
+        
+        if latest_item:
+            latest_pct = _to_float_or_none(latest_item.get("mainHoldPercent"))
+            prev_pct = _to_float_or_none(prev_item.get("mainHoldPercent")) if prev_item else None
+            diff_pct = round(latest_pct - prev_pct, 2) if (latest_pct is not None and prev_pct is not None) else None
+            
+            h_date = latest_item.get("endDate", "")
+            if "T" in h_date:
+                h_date = h_date.split("T")[0]
+            else:
+                h_date = h_date[:10]
+
+            holders_data = {
+                "date": h_date,
+                "percent": latest_pct,
+                "diff": diff_pct,
+                "count": _safe_int(latest_item.get("mainHolderCount"))
+            }
+
+    # 格式化日期格式 YYYY-MM-DD
+    formatted_date = ""
+    if refreshed_date:
+        if "T" in refreshed_date:
+            formatted_date = refreshed_date.split("T")[0]
+        else:
+            formatted_date = refreshed_date[:10]
+
+    result = {
+        "success": bool(major_data or inst_summary or margin_data or holders_data),
+        "symbol": sym,
+        "date": formatted_date,
+        "major": major_data,
+        "institutions": inst_summary,
+        "margin": margin_data,
+        "holders": holders_data
+    }
+
+    # 寫入快取
+    if result["success"]:
+        _chip_info_cache[sym] = {
+            "data": result,
+            "fetched_at": now
+        }
+
+    return result
+
+
+
 # ==========================================
 # Watchlist CRUD APIs (Supabase)
 # ==========================================
@@ -636,7 +929,7 @@ market_stats_cache = {
 }
 
 
-def _parse_mi_index_stock_stats(data: dict) -> dict | None:
+def _parse_mi_index_stock_stats(data: dict) -> Optional[dict]:
     """從 MI_INDEX 回應解析漲跌家數。"""
     if data.get("stat") != "OK":
         return None
@@ -681,7 +974,7 @@ def _parse_mi_index_stock_stats(data: dict) -> dict | None:
     return stock_data
 
 
-def _fetch_latest_business_day_stats(max_lookback_days: int = 10) -> dict | None:
+def _fetch_latest_business_day_stats(max_lookback_days: int = 10) -> Optional[dict]:
     """盤後模式：往前回溯到最近營業日並抓取 MI_INDEX 統計。"""
     headers = {'User-Agent': 'Mozilla/5.0'}
     today = datetime.now()
@@ -705,7 +998,7 @@ def _fetch_latest_business_day_stats(max_lookback_days: int = 10) -> dict | None
     return None
 
 
-def _fetch_twse_index_quote() -> dict | None:
+def _fetch_twse_index_quote() -> Optional[dict]:
     """取得台股加權指數（發行量加權股價指數）即時/最新報價。"""
     try:
         cookie_jar = http.cookiejar.CookieJar()
@@ -731,7 +1024,7 @@ def _fetch_twse_index_quote() -> dict | None:
         if not msg:
             return None
 
-        def _to_float(val) -> float | None:
+        def _to_float(val) -> Optional[float]:
             if val is None:
                 return None
             s = str(val).strip().replace(",", "")
@@ -767,10 +1060,10 @@ def _fetch_twse_index_quote() -> dict | None:
         return None
 
 
-def _fetch_latest_business_day_index(max_months_back: int = 3) -> dict | None:
+def _fetch_latest_business_day_index(max_months_back: int = 3) -> Optional[dict]:
     """盤後模式：從 TWSE FMTQIK 取得最新營業日加權指數。"""
 
-    def _to_float(val) -> float | None:
+    def _to_float(val) -> Optional[float]:
         if val is None:
             return None
         s = str(val).strip().replace(",", "")
@@ -832,7 +1125,7 @@ def _fetch_latest_business_day_index(max_months_back: int = 3) -> dict | None:
     return None
 
 
-def _fetch_realtime_stock_stats() -> dict | None:
+def _fetch_realtime_stock_stats() -> Optional[dict]:
     """抓取最新交易日股票家數（上漲/下跌/平盤）。"""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -846,7 +1139,7 @@ def _fetch_realtime_stock_stats() -> dict | None:
     with urllib.request.urlopen(req, timeout=8) as response:
         html = response.read().decode('utf-8', 'ignore')
 
-    def _extract_int(key: str) -> int | None:
+    def _extract_int(key: str) -> Optional[int]:
         m = re.search(rf'"{key}":\{{"raw":"?(\d+)', html)
         return int(m.group(1)) if m else None
 

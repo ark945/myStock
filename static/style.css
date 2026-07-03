@@ -1939,4 +1939,217 @@ tr.dragging {
     box-shadow: 0 0 6px rgba(34, 197, 94, 0.15);
 }
 
+/* --- Chip Modal CSS --- */
+.modal-lg {
+    max-width: 600px;
+}
+
+.chip-date {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+    margin-top: -12px;
+    font-weight: 500;
+}
+
+.chip-section-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent-primary);
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 6px;
+    letter-spacing: 0.5px;
+    margin-top: 16px;
+}
+
+/* 主力進出 Grid */
+.chip-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.chip-card {
+    background: var(--bg-glass);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    text-align: center;
+    transition: all var(--transition-fast);
+}
+
+.chip-card:hover {
+    border-color: var(--border-accent);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.chip-card-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.chip-card-value {
+    font-size: 16px;
+    font-weight: 700;
+}
+
+/* 三大法人 表格 */
+.chip-table-container {
+    background: var(--bg-glass);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.chip-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.chip-table th,
+.chip-table td {
+    padding: 12px 16px;
+    text-align: right;
+}
+
+.chip-table th {
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--text-secondary);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.chip-table th:first-child,
+.chip-table td:first-child {
+    text-align: left;
+    font-weight: 600;
+}
+
+.chip-table tr:not(:last-child) td {
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.chip-table tr.total-row td {
+    background: rgba(255, 255, 255, 0.02);
+    font-weight: 700;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* 顏色與按鈕樣式 */
+.text-up {
+    color: var(--color-up) !important;
+}
+
+.text-down {
+    color: var(--color-down) !important;
+}
+
+.text-neutral {
+    color: var(--text-secondary) !important;
+}
+
+.btn-icon.btn-chip {
+    background: var(--bg-glass) !important;
+    border-color: rgba(165, 180, 252, 0.3) !important;
+    color: var(--accent-primary) !important;
+}
+
+.btn-icon.btn-chip:hover {
+    background: var(--accent-primary-glow) !important;
+    box-shadow: 0 0 10px var(--accent-primary-glow) !important;
+}
+
+/* 籌碼分佈擴充樣式 */
+.modal-lg {
+    max-width: 640px !important;
+}
+
+.chip-row-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 10px;
+}
+
+@media (max-width: 600px) {
+    .chip-row-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.chip-table-sm th,
+.chip-table-sm td {
+    padding: 6px 10px !important;
+    font-size: 0.85rem !important;
+}
+
+/* 法人連買/連賣小徽章 */
+.consecutive-badge {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+.consecutive-badge.badge-up {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--color-up);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.consecutive-badge.badge-down {
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--color-down);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+/* 大戶持股資訊卡片 */
+.chip-holders-container {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    padding: 14px;
+    height: calc(100% - 25px);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    min-height: 105px;
+    box-sizing: border-box;
+}
+
+.chip-holder-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+}
+
+.chip-holder-row:not(:last-child) {
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+}
+
+.chip-holder-label {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+}
+
+.chip-holder-value {
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.chip-holder-value .diff-val {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-left: 4px;
+}
+
 

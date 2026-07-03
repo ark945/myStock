@@ -57,6 +57,17 @@ const dividendModalStockInfo = document.getElementById("dividendModalStockInfo")
 const dividendModalYear = document.getElementById("dividendModalYear");
 const dividendModalBody = document.getElementById("dividendModalBody");
 
+// Chip modal
+const chipModalOverlay = document.getElementById("chipModalOverlay");
+const chipModalClose = document.getElementById("chipModalClose");
+const chipModalCancel = document.getElementById("chipModalCancel");
+const chipModalStockInfo = document.getElementById("chipModalStockInfo");
+const chipModalDate = document.getElementById("chipModalDate");
+const chipMajorSummary = document.getElementById("chipMajorSummary");
+const chipInstitutionBody = document.getElementById("chipInstitutionBody");
+const chipMarginBody = document.getElementById("chipMarginBody");
+const chipHoldersContainer = document.getElementById("chipHoldersContainer");
+
 // ========== Watchlist API (Supabase via Backend) ==========
 async function loadWatchlist() {
     try {
@@ -214,6 +225,191 @@ async function openDividendModal(symbol) {
 
 function closeDividendModal() {
     dividendModalOverlay.classList.remove("show");
+}
+
+// ========== Chip Distribution API ==========
+async function fetchChipInfo(symbol, market) {
+    try {
+        const res = await fetch(
+            `${API_BASE}/api/chip-info?symbol=${encodeURIComponent(symbol)}&market=${encodeURIComponent(market || "")}`
+        );
+        return await res.json();
+    } catch (err) {
+        console.error("Fetch chip info error:", err);
+        return { success: false, message: "連線失敗，請稍後再試" };
+    }
+}
+
+async function openChipModal(symbol) {
+    const stock = watchlist.find((s) => s.symbol === symbol);
+    if (!stock) return;
+
+    chipModalStockInfo.innerHTML = `
+        <span class="modal-stock-symbol">${escapeHtml(stock.symbol)}</span>
+        <span class="modal-stock-name">${escapeHtml(stock.name || "")}</span>
+        <span class="result-market ${stock.market.toLowerCase()}">${getMarketName(stock.market)}</span>
+    `;
+
+    chipModalDate.textContent = "資料日期: 載入中...";
+    chipMajorSummary.innerHTML = `<div style="grid-column: span 4; text-align: center; color: var(--text-secondary);">載入中...</div>`;
+    chipInstitutionBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">載入中...</td></tr>`;
+    chipMarginBody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-secondary);">載入中...</td></tr>`;
+    chipHoldersContainer.innerHTML = `<div style="text-align: center; padding: 20px 0; color: var(--text-secondary);">載入中...</div>`;
+    
+    chipModalOverlay.classList.add("show");
+
+    const data = await fetchChipInfo(stock.symbol, stock.market);
+
+    if (data && data.success) {
+        // Render Date
+        chipModalDate.textContent = `資料日期: ${escapeHtml(data.date || "—")}`;
+
+        // Render Major Broker Trading Summary
+        const major = data.major;
+        if (major) {
+            const netClass = major.net > 0 ? "text-up" : (major.net < 0 ? "text-down" : "text-neutral");
+            const netSign = major.net > 0 ? "+" : "";
+            const ratioPct = major.ratio != null ? `${(major.ratio * 100).toFixed(2)}%` : "—";
+
+            chipMajorSummary.innerHTML = `
+                <div class="chip-card">
+                    <div class="chip-card-label">主力買進</div>
+                    <div class="chip-card-value text-up">${major.buy != null ? major.buy.toLocaleString() : "—"}</div>
+                </div>
+                <div class="chip-card">
+                    <div class="chip-card-label">主力賣出</div>
+                    <div class="chip-card-value text-down">${major.sell != null ? major.sell.toLocaleString() : "—"}</div>
+                </div>
+                <div class="chip-card">
+                    <div class="chip-card-label">主力買賣超</div>
+                    <div class="chip-card-value ${netClass}">${netSign}${major.net != null ? major.net.toLocaleString() : "—"}</div>
+                </div>
+                <div class="chip-card">
+                    <div class="chip-card-label">佔成交量比</div>
+                    <div class="chip-card-value">${ratioPct}</div>
+                </div>
+            `;
+        } else {
+            chipMajorSummary.innerHTML = `<div style="grid-column: span 4; text-align: center; color: var(--text-secondary);">暫無主力進出資訊</div>`;
+        }
+
+        // Render Three Institutional Investors Table
+        const inst = data.institutions;
+        if (inst) {
+            const formatRow = (label, rowData, isTotal = false) => {
+                if (!rowData) return "";
+                const net = rowData.net;
+                const netClass = net > 0 ? "text-up" : (net < 0 ? "text-down" : "text-neutral");
+                const netSign = net > 0 ? "+" : "";
+                
+                let badgeHtml = "";
+                if (!isTotal && rowData.consecutive && rowData.consecutive !== 0) {
+                    const days = rowData.consecutive;
+                    if (days > 0) {
+                        badgeHtml = `<span class="consecutive-badge badge-up">連買 ${days} 天</span>`;
+                    } else if (days < 0) {
+                        badgeHtml = `<span class="consecutive-badge badge-down">連賣 ${Math.abs(days)} 天</span>`;
+                    }
+                }
+                
+                return `
+                    <tr class="${isTotal ? 'total-row' : ''}">
+                        <td>${label}</td>
+                        <td>${rowData.buy != null ? rowData.buy.toLocaleString() : "—"}</td>
+                        <td>${rowData.sell != null ? rowData.sell.toLocaleString() : "—"}</td>
+                        <td class="${netClass}">
+                            ${netSign}${rowData.net != null ? rowData.net.toLocaleString() : "—"}
+                            ${badgeHtml}
+                        </td>
+                    </tr>
+                `;
+            };
+
+            chipInstitutionBody.innerHTML = `
+                ${formatRow("外資", inst.foreign)}
+                ${formatRow("投信", inst.trust)}
+                ${formatRow("自營商", inst.dealer)}
+                ${formatRow("三大法人合計", inst.total, true)}
+            `;
+        } else {
+            chipInstitutionBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">暫無法人買賣超資訊</td></tr>`;
+        }
+
+        // Render Margin Trading Table
+        const margin = data.margin;
+        if (margin) {
+            const formatMarginRow = (label, rowData) => {
+                if (!rowData) return "";
+                const diff = rowData.diff;
+                const diffClass = diff > 0 ? "text-up" : (diff < 0 ? "text-down" : "text-neutral");
+                const diffSign = diff > 0 ? "+" : "";
+                return `
+                    <tr>
+                        <td>${label}</td>
+                        <td>${rowData.total != null ? rowData.total.toLocaleString() : "—"}</td>
+                        <td class="${diffClass}">${diffSign}${diff != null ? diff.toLocaleString() : "—"}</td>
+                    </tr>
+                `;
+            };
+            
+            let ratioRowHtml = "";
+            if (margin.ratio != null) {
+                ratioRowHtml = `
+                    <tr>
+                        <td>券資比</td>
+                        <td colspan="2" style="text-align: right; font-weight: 700; color: var(--accent-primary);">${margin.ratio.toFixed(2)}%</td>
+                    </tr>
+                `;
+            }
+
+            chipMarginBody.innerHTML = `
+                ${formatMarginRow("融資 (長/多)", margin.financing)}
+                ${formatMarginRow("融券 (短/空)", margin.short)}
+                ${ratioRowHtml}
+            `;
+        } else {
+            chipMarginBody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-secondary);">暫無信用交易資訊</td></tr>`;
+        }
+
+        // Render Shareholder Distribution
+        const holders = data.holders;
+        if (holders) {
+            const diffClass = holders.diff > 0 ? "text-up" : (holders.diff < 0 ? "text-down" : "text-neutral");
+            const diffSign = holders.diff > 0 ? "+" : "";
+            const diffText = holders.diff != null ? `(${diffSign}${holders.diff.toFixed(2)}%)` : "";
+            
+            chipHoldersContainer.innerHTML = `
+                <div class="chip-holder-row">
+                    <span class="chip-holder-label">資料日期</span>
+                    <span class="chip-holder-value">${escapeHtml(holders.date || "—")}</span>
+                </div>
+                <div class="chip-holder-row">
+                    <span class="chip-holder-label">大戶持股比例</span>
+                    <span class="chip-holder-value" style="color: var(--accent-primary);">
+                        ${holders.percent != null ? holders.percent.toFixed(2) + "%" : "—"}
+                        <span class="diff-val ${diffClass}">${diffText}</span>
+                    </span>
+                </div>
+                <div class="chip-holder-row">
+                    <span class="chip-holder-label">大戶人數</span>
+                    <span class="chip-holder-value">${holders.count != null ? holders.count + " 人" : "—"}</span>
+                </div>
+            `;
+        } else {
+            chipHoldersContainer.innerHTML = `<div style="text-align: center; padding: 20px 0; color: var(--text-secondary);">暫無大戶持股資訊</div>`;
+        }
+    } else {
+        const errorMsg = data && data.message ? data.message : "無法取得籌碼資訊";
+        chipModalDate.textContent = `錯誤: ${escapeHtml(errorMsg)}`;
+        chipMajorSummary.innerHTML = `<div style="grid-column: span 4; text-align: center; color: var(--color-up);">${escapeHtml(errorMsg)}</div>`;
+        chipInstitutionBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--color-up);">${escapeHtml(errorMsg)}</td></tr>`;
+        chipMarginBody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--color-up);">${escapeHtml(errorMsg)}</td></tr>`;
+        chipHoldersContainer.innerHTML = `<div style="text-align: center; padding: 20px 0; color: var(--color-up);">${escapeHtml(errorMsg)}</div>`;
+    }
+}
+
+function closeChipModal() {
+    chipModalOverlay.classList.remove("show");
 }
 
 // ========== Search ==========
@@ -589,6 +785,9 @@ function renderTable() {
                 const pnlCash = calcPnlCash(price, stock.entryPrice, stock.market);
                 const isFirst = idx === 0;
                 const isLast = idx === watchlist.length - 1;
+                const chipBtnHtml = stock.market === 'TW' 
+                    ? `<button class="btn-icon btn-chip" onclick="openChipModal('${stock.symbol}')" title="籌碼分布">籌碼</button>` 
+                    : '';
 
                 return `
             <tr data-symbol="${stock.symbol}" class="row-enter" draggable="true">
@@ -662,6 +861,7 @@ function renderTable() {
                     <span class="cell-actions">
                         <button class="btn-icon btn-sort" onclick="moveStock('${stock.symbol}', -1)" ${isFirst ? "disabled style='opacity: 0.3; cursor: not-allowed;'" : ""} title="上移">▲</button>
                         <button class="btn-icon btn-sort" onclick="moveStock('${stock.symbol}', 1)" ${isLast ? "disabled style='opacity: 0.3; cursor: not-allowed;'" : ""} title="下移">▼</button>
+                        ${chipBtnHtml}
                         <button class="btn-icon btn-dividend" onclick="openDividendModal('${stock.symbol}')" title="股利資訊">股利</button>
                         <button class="btn-icon" onclick="openEditModal('${stock.symbol}')" title="編輯">✏️</button>
                         <button class="btn-icon btn-delete" onclick="deleteStock('${stock.symbol}')" title="刪除">🗑️</button>
@@ -1234,6 +1434,13 @@ dividendModalClose.addEventListener("click", closeDividendModal);
 dividendModalCancel.addEventListener("click", closeDividendModal);
 dividendModalOverlay.addEventListener("click", (e) => {
     if (e.target === dividendModalOverlay) closeDividendModal();
+});
+
+// Chip modal
+chipModalClose.addEventListener("click", closeChipModal);
+chipModalCancel.addEventListener("click", closeChipModal);
+chipModalOverlay.addEventListener("click", (e) => {
+    if (e.target === chipModalOverlay) closeChipModal();
 });
 
 // Refresh interval change
