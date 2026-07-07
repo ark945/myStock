@@ -94,11 +94,32 @@ async function loadUsers() {
             users = data.data;
             renderUserSelector();
             
-            // 讀取上次使用的使用者，否則預設選第一個
-            const savedUserId = localStorage.getItem("myStock_currentUserId");
-            const foundUser = savedUserId ? users.find(u => u.id == savedUserId) : null;
-            currentUser = foundUser || users[0];
+            // 讀取網址 URL 參數
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlUser = urlParams.get('user') || urlParams.get('username');
+            
+            let matchedUser = null;
+            if (urlUser) {
+                const urlUserTrimmed = urlUser.trim().toLowerCase();
+                // 優先比對 username (不區分大小寫)
+                matchedUser = users.find(u => u.username.toLowerCase() === urlUserTrimmed);
+                // 其次比對 ID
+                if (!matchedUser) {
+                    matchedUser = users.find(u => String(u.id) === urlUserTrimmed);
+                }
+            }
+            
+            if (matchedUser) {
+                currentUser = matchedUser;
+            } else {
+                // 讀取上次使用的使用者，否則預設選第一個
+                const savedUserId = localStorage.getItem("myStock_currentUserId");
+                const foundUser = savedUserId ? users.find(u => u.id == savedUserId) : null;
+                currentUser = foundUser || users[0];
+            }
+            
             userSelector.value = currentUser.id;
+            localStorage.setItem("myStock_currentUserId", currentUser.id);
             
             await loadWatchlists();
         }
