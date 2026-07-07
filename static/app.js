@@ -37,6 +37,8 @@ const statusIndicator = document.getElementById("statusIndicator");
 // 多人與多清單 DOM
 const userSelector = document.getElementById("userSelector");
 const addUserBtn = document.getElementById("addUserBtn");
+const renameUserBtn = document.getElementById("renameUserBtn");
+const deleteUserBtn = document.getElementById("deleteUserBtn");
 const watchlistGroupsTabs = document.getElementById("watchlistGroupsTabs");
 const addGroupBtn = document.getElementById("addGroupBtn");
 const renameGroupBtn = document.getElementById("renameGroupBtn");
@@ -109,6 +111,9 @@ function renderUserSelector() {
     userSelector.innerHTML = users
         .map(u => `<option value="${u.id}">${escapeHtml(u.username)}</option>`)
         .join("");
+        
+    // 如果只剩一個使用者，禁用刪除按鈕
+    deleteUserBtn.disabled = users.length <= 1;
 }
 
 async function handleAddUser() {
@@ -133,6 +138,58 @@ async function handleAddUser() {
         }
     } catch (err) {
         console.error("Add user error:", err);
+    }
+}
+
+async function handleRenameUser() {
+    if (!currentUser) return;
+    const newName = prompt("請輸入新的使用者名稱：", currentUser.username);
+    if (!newName || !newName.trim() || newName.trim() === currentUser.username) return;
+    try {
+        const res = await fetch(`${API_BASE}/api/users/${currentUser.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: newName.trim() })
+        });
+        const data = await res.json();
+        if (data.success) {
+            currentUser.username = data.data.username;
+            const option = userSelector.querySelector(`option[value="${currentUser.id}"]`);
+            if (option) option.textContent = data.data.username;
+        } else {
+            alert("修改使用者名稱失敗：" + (data.error || "未知錯誤"));
+        }
+    } catch (err) {
+        console.error("Rename user error:", err);
+    }
+}
+
+async function handleDeleteUser() {
+    if (!currentUser) return;
+    if (users.length <= 1) {
+        alert("必須保留至少一個使用者！");
+        return;
+    }
+    if (!confirm(`確定要刪除使用者「${currentUser.username}」嗎？這將會刪除其名下的所有自訂清單與追蹤股票。`)) {
+        return;
+    }
+    try {
+        const res = await fetch(`${API_BASE}/api/users/${currentUser.id}`, {
+            method: "DELETE"
+        });
+        const data = await res.json();
+        if (data.success) {
+            users = users.filter(u => u.id !== currentUser.id);
+            currentUser = users[0];
+            userSelector.value = currentUser.id;
+            localStorage.setItem("myStock_currentUserId", currentUser.id);
+            renderUserSelector();
+            await loadWatchlists();
+        } else {
+            alert("刪除使用者失敗：" + (data.error || "未知錯誤"));
+        }
+    } catch (err) {
+        console.error("Delete user error:", err);
     }
 }
 
@@ -1811,6 +1868,8 @@ async function init() {
     });
     
     addUserBtn.addEventListener("click", handleAddUser);
+    renameUserBtn.addEventListener("click", handleRenameUser);
+    deleteUserBtn.addEventListener("click", handleDeleteUser);
     addGroupBtn.addEventListener("click", handleAddWatchlist);
     renameGroupBtn.addEventListener("click", handleRenameWatchlist);
     deleteGroupBtn.addEventListener("click", handleDeleteWatchlist);

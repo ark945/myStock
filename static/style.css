@@ -2192,20 +2192,32 @@ tr.dragging {
 }
 
 .btn-user-action {
-    background: var(--accent-primary-glow);
-    border: 1px solid var(--border-accent);
-    color: var(--accent-primary);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
     padding: 2px 8px;
     border-radius: 4px;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
     transition: var(--transition-fast);
 }
 
 .btn-user-action:hover {
-    background: var(--accent-primary);
-    color: var(--bg-primary);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+}
+
+.btn-user-action.delete:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--color-up);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.btn-user-action:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
 /* 追蹤清單子分頁容器 */

@@ -799,6 +799,33 @@ def api_create_user(user: UserCreate):
         return {"success": False, "error": str(e)}
 
 
+@app.put("/api/users/{user_id}")
+def api_rename_user(user_id: int, user: UserCreate):
+    """更名使用者"""
+    try:
+        res = supabase.table("user_profiles").update({"username": user.username}).eq("id", user_id).execute()
+        return {"success": True, "data": res.data[0]}
+    except Exception as e:
+        print(f"Rename user error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.delete("/api/users/{user_id}")
+def api_delete_user(user_id: int):
+    """刪除使用者"""
+    try:
+        # 檢查是否為最後一個使用者
+        res_count = supabase.table("user_profiles").select("id").execute()
+        if len(res_count.data) <= 1:
+            return {"success": False, "error": "必須保留至少一個使用者"}
+        
+        supabase.table("user_profiles").delete().eq("id", user_id).execute()
+        return {"success": True}
+    except Exception as e:
+        print(f"Delete user error: {e}")
+        return {"success": False, "error": str(e)}
+
+
 @app.get("/api/watchlists")
 def api_get_watchlists(user_id: int = Query(...)):
     """取得指定使用者名下的所有追蹤清單分類"""
