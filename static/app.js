@@ -7,6 +7,7 @@
 const API_BASE = "";
 
 // ========== State ==========
+// ========== State ==========
 let watchlist = []; // [{id, symbol, name, market, entry_date, entry_price}]
 let latestPrices = {}; // {symbol: price}
 let yesterdayCloses = {}; // {symbol: price}
@@ -15,6 +16,12 @@ let isSearching = false;
 let pendingStock = null; // 待加入的股票資訊
 let editingSymbol = null; // 正在編輯的股票代號
 let activeTab = "watchlist"; // 目前處於哪個分頁 ("watchlist", "us-market", "jp-market", "kr-market", "twf-market")
+
+// 多人與多清單 State
+let users = []; // [{id, username}]
+let currentUser = null; // {id, username}
+let watchlists = []; // [{id, name, user_id}]
+let currentWatchlist = null; // {id, name, user_id}
 
 // ========== DOM Elements ==========
 const searchInput = document.getElementById("searchInput");
@@ -26,6 +33,14 @@ const emptyState = document.getElementById("emptyState");
 const lastUpdate = document.getElementById("lastUpdate");
 const refreshInterval = document.getElementById("refreshInterval");
 const statusIndicator = document.getElementById("statusIndicator");
+
+// 多人與多清單 DOM
+const userSelector = document.getElementById("userSelector");
+const addUserBtn = document.getElementById("addUserBtn");
+const watchlistGroupsTabs = document.getElementById("watchlistGroupsTabs");
+const addGroupBtn = document.getElementById("addGroupBtn");
+const renameGroupBtn = document.getElementById("renameGroupBtn");
+const deleteGroupBtn = document.getElementById("deleteGroupBtn");
 
 // Add modal
 const modalOverlay = document.getElementById("modalOverlay");
@@ -68,10 +83,214 @@ const chipInstitutionBody = document.getElementById("chipInstitutionBody");
 const chipMarginBody = document.getElementById("chipMarginBody");
 const chipHoldersContainer = document.getElementById("chipHoldersContainer");
 
-// ========== Watchlist API (Supabase via Backend) ==========
-async function loadWatchlist() {
+// ========== User Profiles API ==========
+async function loadUsers() {
     try {
-        const res = await fetch(`${API_BASE}/api/watchlist`);
+        const res = await fetch(`${API_BASE}/api/users`);
+        const data = await res.json();
+        if (data.success && data.data.length > 0) {
+            users = data.data;
+            renderUserSelector();
+            
+            // 讀取上次使用的使用者，否則預設選第一個
+            const savedUserId = localStorage.getItem("myStock_currentUserId");
+            const foundUser = savedUserId ? users.find(u => u.id == savedUserId) : null;
+            currentUser = foundUser || users[0];
+            userSelector.value = currentUser.id;
+            
+            await loadWatchlists();
+        }
+    } catch (err) {
+        console.error("Load users error:", err);
+    }
+}
+
+function renderUserSelector() {
+    userSelector.innerHTML = users
+        .map(u => `<option value="${u.id}">${escapeHtml(u.username)}</option>`)
+        .join("");
+}
+
+async function handleAddUser() {
+    const name = prompt("請輸入新使用者名稱：");
+    if (!name || !name.trim()) return;
+    try {
+        const res = await fetch(`${API_BASE}/api/users`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: name.trim() })
+        });
+        const data = await res.json();
+        if (data.success) {
+            users.push(data.data);
+            renderUserSelector();
+            currentUser = data.data;
+            userSelector.value = currentUser.id;
+            localStorage.setItem("myStock_currentUserId", currentUser.id);
+            await loadWatchlists();
+        } else {
+            alert("新增使用者失敗：" + (data.error || "未知錯誤"));
+        }
+    } catch (err) {
+        console.error("Add user error:", err);
+    }
+}
+
+// ========== Watchlists Categories API ==========
+async function loadWatchlists() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`${API_BASE}/api/watchlists?user_id=${currentUser.id}`);
+        const data = await res.json();
+        if (data.success) {
+            watchlists = data.data;
+            renderWatchlistGroups();
+            
+            // 選擇上次清單，否則選擇第一個
+            const savedWlId = localStorage.getItem(`myStock_currentWlId_user_${currentUser.id}`);
+            const foundWl = savedWlId ? watchlists.find(w => w.id == savedWlId) : null;
+            currentWatchlist = foundWl || watchlists[0];
+            
+            if (currentWatchlist) {
+                localStorage.setItem(`myStock_currentWlId_user_${currentUser.id}`, currentWatchlist.id);
+                document.querySelectorAll(".group-tab").forEach(tab => {
+                    tab.classList.toggle("active", tab.getAttribute("data-id") == currentWatchlist.id);
+                });
+            }
+            
+            // 載入個股
+            await loadWatchlist();
+            renderWatchlist();
+            if (watchlist.length > 0) {
+                fetchQuotes();
+            }
+        }
+    } catch (err) {
+        console.error("Load watchlists category error:", err);
+    }
+}
+
+function renderWatchlistGroups() {
+    watchlistGroupsTabs.innerHTML = watchlists
+        .map(w => `<button class="group-tab" data-id="${w.id}">${escapeHtml(w.name)}</button>`)
+        .join("");
+        
+    // 綁定點擊切換事件
+    document.querySelectorAll(".group-tab").forEach(tab => {
+        tab.addEventListener("click", () => {
+            const wlId = parseInt(tab.getAttribute("data-id"));
+            const wl = watchlists.find(w => w.id === wlId);
+            if (wl) {
+                currentWatchlist = wl;
+                localStorage.setItem(`myStock_currentWlId_user_${currentUser.id}`, wl.id);
+                document.querySelectorAll(".group-tab").forEach(t => t.classList.remove("active"));
+                tab.classList.add("active");
+                loadWatchlist().then(() => {
+                    renderWatchlist();
+                    if (watchlist.length > 0) {
+                        fetchQuotes();
+                    }
+                });
+            }
+        });
+    });
+    
+    // 如果只剩一個清單，禁用刪除按鈕
+    deleteGroupBtn.disabled = watchlists.length <= 1;
+}
+
+async function handleAddWatchlist() {
+    if (!currentUser) return;
+    const name = prompt("請輸入新追蹤清單分類名稱：");
+    if (!name || !name.trim()) return;
+    try {
+        const res = await fetch(`${API_BASE}/api/watchlists`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: name.trim(), user_id: currentUser.id })
+        });
+        const data = await res.json();
+        if (data.success) {
+            watchlists.push(data.data);
+            renderWatchlistGroups();
+            currentWatchlist = data.data;
+            localStorage.setItem(`myStock_currentWlId_user_${currentUser.id}`, currentWatchlist.id);
+            document.querySelectorAll(".group-tab").forEach(tab => {
+                tab.classList.toggle("active", tab.getAttribute("data-id") == currentWatchlist.id);
+            });
+            await loadWatchlist();
+            renderWatchlist();
+        } else {
+            alert("新增清單失敗：" + (data.error || "未知錯誤"));
+        }
+    } catch (err) {
+        console.error("Add watchlist category error:", err);
+    }
+}
+
+async function handleRenameWatchlist() {
+    if (!currentWatchlist) return;
+    const newName = prompt("請輸入新的清單名稱：", currentWatchlist.name);
+    if (!newName || !newName.trim() || newName.trim() === currentWatchlist.name) return;
+    try {
+        const res = await fetch(`${API_BASE}/api/watchlists/${currentWatchlist.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: newName.trim() })
+        });
+        const data = await res.json();
+        if (data.success) {
+            currentWatchlist.name = data.data.name;
+            const tabBtn = watchlistGroupsTabs.querySelector(`.group-tab[data-id="${currentWatchlist.id}"]`);
+            if (tabBtn) tabBtn.textContent = data.data.name;
+        } else {
+            alert("修改清單名稱失敗：" + (data.error || "未知錯誤"));
+        }
+    } catch (err) {
+        console.error("Rename watchlist category error:", err);
+    }
+}
+
+async function handleDeleteWatchlist() {
+    if (!currentWatchlist || !currentUser) return;
+    if (watchlists.length <= 1) {
+        alert("必須保留至少一個追蹤清單！");
+        return;
+    }
+    if (!confirm(`確定要刪除清單「${currentWatchlist.name}」嗎？這將會刪除該清單下的所有追蹤股票。`)) {
+        return;
+    }
+    try {
+        const res = await fetch(`${API_BASE}/api/watchlists/${currentWatchlist.id}?user_id=${currentUser.id}`, {
+            method: "DELETE"
+        });
+        const data = await res.json();
+        if (data.success) {
+            watchlists = watchlists.filter(w => w.id !== currentWatchlist.id);
+            currentWatchlist = watchlists[0];
+            localStorage.setItem(`myStock_currentWlId_user_${currentUser.id}`, currentWatchlist.id);
+            renderWatchlistGroups();
+            document.querySelectorAll(".group-tab").forEach(tab => {
+                tab.classList.toggle("active", tab.getAttribute("data-id") == currentWatchlist.id);
+            });
+            await loadWatchlist();
+            renderWatchlist();
+        } else {
+            alert("刪除清單失敗：" + (data.error || "未知錯誤"));
+        }
+    } catch (err) {
+        console.error("Delete watchlist category error:", err);
+    }
+}
+
+// ========== Watchlist Items API (Supabase via Backend) ==========
+async function loadWatchlist() {
+    if (!currentWatchlist) {
+        watchlist = [];
+        return;
+    }
+    try {
+        const res = await fetch(`${API_BASE}/api/watchlist?watchlist_id=${currentWatchlist.id}`);
         const data = await res.json();
         if (data.success) {
             watchlist = data.data.map((item) => {
@@ -117,6 +336,7 @@ async function loadWatchlist() {
 }
 
 async function addToWatchlist(stock) {
+    if (!currentWatchlist) return false;
     try {
         const res = await fetch(`${API_BASE}/api/watchlist`, {
             method: "POST",
@@ -128,6 +348,7 @@ async function addToWatchlist(stock) {
                 entry_date: stock.entryDate,
                 entry_price: stock.entryPrice,
                 target_price: stock.targetPrice != null ? stock.targetPrice : 0.0,
+                watchlist_id: currentWatchlist.id
             }),
         });
         const data = await res.json();
@@ -139,8 +360,9 @@ async function addToWatchlist(stock) {
 }
 
 async function updateWatchlistItem(symbol, entryDate, entryPrice, targetPrice) {
+    if (!currentWatchlist) return false;
     try {
-        const res = await fetch(`${API_BASE}/api/watchlist/${encodeURIComponent(symbol)}`, {
+        const res = await fetch(`${API_BASE}/api/watchlist/${encodeURIComponent(symbol)}?watchlist_id=${currentWatchlist.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -158,8 +380,9 @@ async function updateWatchlistItem(symbol, entryDate, entryPrice, targetPrice) {
 }
 
 async function removeFromWatchlist(symbol) {
+    if (!currentWatchlist) return false;
     try {
-        const res = await fetch(`${API_BASE}/api/watchlist/${encodeURIComponent(symbol)}`, {
+        const res = await fetch(`${API_BASE}/api/watchlist/${encodeURIComponent(symbol)}?watchlist_id=${currentWatchlist.id}`, {
             method: "DELETE",
         });
         const data = await res.json();
@@ -1513,6 +1736,7 @@ function getDragAfterElement(container, y) {
 }
 
 async function saveNewOrder() {
+    if (!currentWatchlist) return;
     const rows = [...stockTableBody.querySelectorAll("tr")];
     const symbols = rows.map(row => row.dataset.symbol);
     
@@ -1528,7 +1752,7 @@ async function saveNewOrder() {
     renderTable();
 
     try {
-        const res = await fetch(`${API_BASE}/api/watchlist/reorder`, {
+        const res = await fetch(`${API_BASE}/api/watchlist/reorder?watchlist_id=${currentWatchlist.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ symbols }),
@@ -1543,6 +1767,7 @@ async function saveNewOrder() {
 }
 
 async function moveStock(symbol, direction) {
+    if (!currentWatchlist) return;
     const index = watchlist.findIndex(s => s.symbol === symbol);
     if (index === -1) return;
     
@@ -1558,7 +1783,7 @@ async function moveStock(symbol, direction) {
     
     const symbols = watchlist.map(s => s.symbol);
     try {
-        const res = await fetch(`${API_BASE}/api/watchlist/reorder`, {
+        const res = await fetch(`${API_BASE}/api/watchlist/reorder?watchlist_id=${currentWatchlist.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ symbols }),
@@ -1574,8 +1799,25 @@ async function moveStock(symbol, direction) {
 
 // ========== Init ==========
 async function init() {
-    await loadWatchlist();
-    renderTable();
+    // 綁定多人與多清單相關事件
+    userSelector.addEventListener("change", () => {
+        const userId = parseInt(userSelector.value);
+        const user = users.find(u => u.id === userId);
+        if (user) {
+            currentUser = user;
+            localStorage.setItem("myStock_currentUserId", user.id);
+            loadWatchlists();
+        }
+    });
+    
+    addUserBtn.addEventListener("click", handleAddUser);
+    addGroupBtn.addEventListener("click", handleAddWatchlist);
+    renameGroupBtn.addEventListener("click", handleRenameWatchlist);
+    deleteGroupBtn.addEventListener("click", handleDeleteWatchlist);
+
+    // 載入使用者資料 (這會連帶載入追蹤清單與個股)
+    await loadUsers();
+    
     loadMarketStats();
 
     // 綁定全域的 dragover 到 tbody 上
@@ -1592,13 +1834,10 @@ async function init() {
         }
     });
 
-    // Fetch prices immediately if watchlist is not empty
-    if (watchlist.length > 0) {
-        fetchQuotes();
-    }
-
     startRefreshTimer();
 }
+
+const renderWatchlist = renderTable;
 
 init();
 

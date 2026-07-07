@@ -2152,4 +2152,155 @@ tr.dragging {
     margin-left: 4px;
 }
 
+/* =========================================================================
+   多人使用與自訂追蹤清單分類樣式
+   ========================================================================= */
+
+/* 使用者切換控制項 */
+.user-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-subtle);
+    padding: 6px 12px;
+    border-radius: var(--radius-md);
+    margin-right: 12px;
+}
+
+.user-control label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.user-control select {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    outline: none;
+    padding-right: 4px;
+}
+
+.user-control select option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.btn-user-action {
+    background: var(--accent-primary-glow);
+    border: 1px solid var(--border-accent);
+    color: var(--accent-primary);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.btn-user-action:hover {
+    background: var(--accent-primary);
+    color: var(--bg-primary);
+}
+
+/* 追蹤清單子分頁容器 */
+.watchlist-groups-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-glass);
+    border: 1px solid var(--bg-glass-border);
+    padding: 10px 16px;
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.watchlist-groups-tabs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.group-tab {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.group-tab:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-primary);
+}
+
+.group-tab.active {
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+    border-color: transparent;
+    color: var(--bg-primary);
+    box-shadow: 0 0 15px rgba(165, 180, 252, 0.3);
+}
+
+.watchlist-groups-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-group-action {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.btn-group-action:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+}
+
+.btn-group-action.add {
+    background: var(--accent-primary-glow);
+    border-color: var(--border-accent);
+    color: var(--accent-primary);
+    font-weight: 600;
+}
+
+.btn-group-action.add:hover {
+    background: var(--accent-primary);
+    color: var(--bg-primary);
+    box-shadow: 0 0 10px rgba(165, 180, 252, 0.3);
+}
+
+.btn-group-action.delete:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--color-up);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.btn-group-action:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 

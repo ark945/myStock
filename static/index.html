@@ -34,6 +34,13 @@
                     <span class="status-dot"></span>
                     <span class="status-text">即時更新中</span>
                 </div>
+                <div class="user-control">
+                    <label for="userSelector">👤 使用者</label>
+                    <select id="userSelector">
+                        <!-- 動態填充 -->
+                    </select>
+                    <button class="btn-user-action" id="addUserBtn" title="新增使用者">➕ 新增</button>
+                </div>
                 <div class="refresh-control">
                     <label for="refreshInterval">更新間隔</label>
                     <select id="refreshInterval">
@@ -57,6 +64,18 @@
 
         <!-- 追蹤清單分頁內容 -->
         <div id="watchlist-tab" class="tab-content active">
+            <!-- 追蹤清單分類子分頁 -->
+            <div class="watchlist-groups-container">
+                <div class="watchlist-groups-tabs" id="watchlistGroupsTabs">
+                    <!-- 動態渲染子分頁 -->
+                </div>
+                <div class="watchlist-groups-actions">
+                    <button class="btn-group-action" id="renameGroupBtn" title="重新命名目前清單">✏️ 改名</button>
+                    <button class="btn-group-action delete" id="deleteGroupBtn" title="刪除目前清單">🗑️ 刪除</button>
+                    <button class="btn-group-action add" id="addGroupBtn">➕ 新增清單</button>
+                </div>
+            </div>
+
             <!-- 搜尋區域 -->
             <section class="search-section">
             <div class="search-box">

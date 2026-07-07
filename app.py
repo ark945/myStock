@@ -69,7 +69,7 @@ async def price_updater_loop():
             # A. 從 Supabase 取得目前所有正在追蹤的股票
             response = await asyncio.to_thread(lambda: supabase.table("watchlist").select("*").execute())
             rows = response.data if response.data else []
-            symbols = [row["symbol"] for row in rows]
+            symbols = list(set(row["symbol"] for row in rows if row.get("symbol")))
             
             if symbols:
                 # 檢查是否有任何股票的基本面欄位、走勢或新財務指標仍為空
@@ -144,9 +144,50 @@ async def price_updater_loop():
         await asyncio.sleep(60)
 
 
+def get_or_create_default_user_and_watchlist():
+    try:
+        # 1. 檢查並建立預設使用者
+        res_user = supabase.table("user_profiles").select("*").limit(1).execute()
+        if not res_user.data:
+            res_new_user = supabase.table("user_profiles").insert({"username": "預設使用者"}).execute()
+            user = res_new_user.data[0]
+        else:
+            user = res_user.data[0]
+            
+        user_id = user["id"]
+        
+        # 2. 檢查並建立該使用者下的預設清單
+        res_wl = supabase.table("watchlists").select("*").eq("user_id", user_id).limit(1).execute()
+        if not res_wl.data:
+            res_new_wl = supabase.table("watchlists").insert({"name": "預設清單", "user_id": user_id}).execute()
+            wl = res_new_wl.data[0]
+        else:
+            wl = res_wl.data[0]
+            
+        # 3. 自動將舊版中沒有 watchlist_id 的股票遷移至預設清單
+        try:
+            res_null = supabase.table("watchlist").select("*").is_("watchlist_id", "null").execute()
+            if res_null.data:
+                for item in res_null.data:
+                    supabase.table("watchlist").update({"watchlist_id": wl["id"]}).eq("id", item["id"]).execute()
+                print(f"成功自動遷移 {len(res_null.data)} 筆無歸屬追蹤股至預設清單 (ID: {wl['id']})")
+        except Exception as mig_e:
+            print(f"自動遷移舊版追蹤股票失敗 (可能尚未執行資料庫遷移 SQL): {mig_e}")
+            
+        return user, wl
+    except Exception as e:
+        print(f"初始化預設使用者與清單出錯 (可能資料庫表尚未建立): {e}")
+        return {"id": 1, "username": "預設使用者"}, {"id": 1, "name": "預設清單", "user_id": 1}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 啟動時：開始背景工作
+    # 啟動時：初始化使用者與清單，並啟動背景更新工作
+    try:
+        await asyncio.to_thread(get_or_create_default_user_and_watchlist)
+    except Exception as e:
+        print(f"啟動初始化錯誤: {e}")
+        
     updater_task = asyncio.create_task(price_updater_loop())
     yield
     # 關閉時：取消背景工作
@@ -168,6 +209,19 @@ app = FastAPI(
 
 
 # --- Pydantic Models ---
+class UserCreate(BaseModel):
+    username: str
+
+
+class WatchlistCreate(BaseModel):
+    name: str
+    user_id: int
+
+
+class WatchlistRename(BaseModel):
+    name: str
+
+
 class WatchlistItem(BaseModel):
     symbol: str
     name: str = ""
@@ -180,6 +234,7 @@ class WatchlistItem(BaseModel):
     volume: Optional[int] = None
     roe: Optional[float] = None
     revenue_growth: Optional[float] = None
+    watchlist_id: Optional[int] = None
 
 
 class WatchlistUpdate(BaseModel):
@@ -712,11 +767,98 @@ async def api_chip_info(
 # ==========================================
 # Watchlist CRUD APIs (Supabase)
 # ==========================================
-@app.get("/api/watchlist")
-def api_get_watchlist():
-    """取得所有追蹤清單"""
+# ==========================================
+# User & Watchlist Group APIs (Supabase)
+# ==========================================
+@app.get("/api/users")
+def api_get_users():
+    """取得所有使用者列表，若為空則自動初始化"""
     try:
-        response = supabase.table("watchlist").select("*").order("sort_order").order("id").execute()
+        res = supabase.table("user_profiles").select("*").order("id").execute()
+        if not res.data:
+            # 自動初始化預設使用者與預設清單
+            _, _ = get_or_create_default_user_and_watchlist()
+            res = supabase.table("user_profiles").select("*").order("id").execute()
+        return {"success": True, "data": res.data}
+    except Exception as e:
+        print(f"Get users error: {e}")
+        return {"success": False, "error": str(e), "data": []}
+
+
+@app.post("/api/users")
+def api_create_user(user: UserCreate):
+    """建立新使用者，並為其初始化一個預設清單"""
+    try:
+        res = supabase.table("user_profiles").insert({"username": user.username}).execute()
+        new_user = res.data[0]
+        # 自動建立第一個預設清單
+        supabase.table("watchlists").insert({"name": "預設清單", "user_id": new_user["id"]}).execute()
+        return {"success": True, "data": new_user}
+    except Exception as e:
+        print(f"Create user error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/watchlists")
+def api_get_watchlists(user_id: int = Query(...)):
+    """取得指定使用者名下的所有追蹤清單分類"""
+    try:
+        res = supabase.table("watchlists").select("*").eq("user_id", user_id).order("id").execute()
+        return {"success": True, "data": res.data}
+    except Exception as e:
+        print(f"Get watchlists error: {e}")
+        return {"success": False, "error": str(e), "data": []}
+
+
+@app.post("/api/watchlists")
+def api_create_watchlist(wl: WatchlistCreate):
+    """在指定使用者下建立新的追蹤清單"""
+    try:
+        res = supabase.table("watchlists").insert({"name": wl.name, "user_id": wl.user_id}).execute()
+        return {"success": True, "data": res.data[0]}
+    except Exception as e:
+        print(f"Create watchlist error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.put("/api/watchlists/{watchlist_id}")
+def api_rename_watchlist(watchlist_id: int, wl: WatchlistRename):
+    """重新命名追蹤清單"""
+    try:
+        res = supabase.table("watchlists").update({"name": wl.name}).eq("id", watchlist_id).execute()
+        return {"success": True, "data": res.data[0]}
+    except Exception as e:
+        print(f"Rename watchlist error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.delete("/api/watchlists/{watchlist_id}")
+def api_delete_watchlist_group(watchlist_id: int, user_id: int = Query(...)):
+    """刪除特定追蹤清單，但必須保留至少一個"""
+    try:
+        # 檢查該使用者名下是否有大於一個追蹤清單
+        res_count = supabase.table("watchlists").select("id").eq("user_id", user_id).execute()
+        if len(res_count.data) <= 1:
+            return {"success": False, "error": "必須保留至少一個追蹤清單"}
+        
+        supabase.table("watchlists").delete().eq("id", watchlist_id).execute()
+        return {"success": True}
+    except Exception as e:
+        print(f"Delete watchlist error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ==========================================
+# Watchlist Items CRUD APIs (Supabase)
+# ==========================================
+@app.get("/api/watchlist")
+def api_get_watchlist(watchlist_id: Optional[int] = Query(None)):
+    """取得特定追蹤清單下的股票列表"""
+    try:
+        if watchlist_id is None:
+            _, wl = get_or_create_default_user_and_watchlist()
+            watchlist_id = wl["id"]
+        response = supabase.table("watchlist").select("*").eq("watchlist_id", watchlist_id).order("sort_order").order("id").execute()
         return {"success": True, "data": response.data}
     except Exception as e:
         print(f"Supabase Get Watchlist Error: {e}")
@@ -725,18 +867,24 @@ def api_get_watchlist():
 
 @app.post("/api/watchlist")
 def api_add_watchlist(item: WatchlistItem):
-    """加入股票到追蹤清單"""
+    """加入股票至特定追蹤清單"""
     try:
+        wl_id = item.watchlist_id
+        if wl_id is None:
+            _, wl = get_or_create_default_user_and_watchlist()
+            wl_id = wl["id"]
+
         # 查詢當前最大 sort_order
         max_order = 0
         try:
-            response = supabase.table("watchlist").select("sort_order").order("sort_order", desc=True).limit(1).execute()
+            response = supabase.table("watchlist").select("sort_order").eq("watchlist_id", wl_id).order("sort_order", desc=True).limit(1).execute()
             if response.data:
                 max_order = response.data[0].get("sort_order") or 0
         except Exception as order_e:
-            print(f"查詢 max sort_order 失敗 (欄位可能尚未建立): {order_e}")
+            print(f"查詢 max sort_order 失敗: {order_e}")
 
         data = {
+            "watchlist_id": wl_id,
             "symbol": item.symbol,
             "name": item.name,
             "market": item.market,
@@ -785,7 +933,7 @@ def api_add_watchlist(item: WatchlistItem):
         except Exception as e:
             print(f"預先抓取新建倉股票 {item.symbol} 歷史與基本面指標失敗: {e}")
 
-        supabase.table("watchlist").upsert(data, on_conflict="symbol").execute()
+        supabase.table("watchlist").upsert(data, on_conflict="watchlist_id,symbol").execute()
         return {"success": True}
     except Exception as e:
         print(f"Supabase Add Watchlist Error: {e}")
@@ -793,12 +941,13 @@ def api_add_watchlist(item: WatchlistItem):
 
 
 @app.put("/api/watchlist/reorder")
-def api_reorder_watchlist(reorder: WatchlistReorder):
+def api_reorder_watchlist(reorder: WatchlistReorder, watchlist_id: int = Query(...)):
     """重新排序追蹤清單"""
     try:
         for index, symbol in enumerate(reorder.symbols):
             supabase.table("watchlist") \
                 .update({"sort_order": index + 1}) \
+                .eq("watchlist_id", watchlist_id) \
                 .eq("symbol", symbol) \
                 .execute()
         return {"success": True}
@@ -808,7 +957,7 @@ def api_reorder_watchlist(reorder: WatchlistReorder):
 
 
 @app.put("/api/watchlist/{symbol}")
-def api_update_watchlist(symbol: str, update: WatchlistUpdate):
+def api_update_watchlist(symbol: str, update: WatchlistUpdate, watchlist_id: int = Query(...)):
     """更新建倉資料"""
     try:
         update_data = {}
@@ -820,7 +969,7 @@ def api_update_watchlist(symbol: str, update: WatchlistUpdate):
             update_data["target_price"] = update.target_price
 
         if update_data:
-            supabase.table("watchlist").update(update_data).eq("symbol", symbol).execute()
+            supabase.table("watchlist").update(update_data).eq("watchlist_id", watchlist_id).eq("symbol", symbol).execute()
         return {"success": True}
     except Exception as e:
         print(f"Supabase Update Watchlist Error: {e}")
@@ -828,10 +977,10 @@ def api_update_watchlist(symbol: str, update: WatchlistUpdate):
 
 
 @app.delete("/api/watchlist/{symbol}")
-def api_delete_watchlist(symbol: str):
+def api_delete_watchlist(symbol: str, watchlist_id: int = Query(...)):
     """從追蹤清單移除股票"""
     try:
-        supabase.table("watchlist").delete().eq("symbol", symbol).execute()
+        supabase.table("watchlist").delete().eq("watchlist_id", watchlist_id).eq("symbol", symbol).execute()
         return {"success": True}
     except Exception as e:
         print(f"Supabase Delete Watchlist Error: {e}")
