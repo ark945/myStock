@@ -1475,6 +1475,8 @@ def api_market_stats():
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
+@app.get("/myStock/")
+@app.get("/myStock")
 @app.get("/")
 async def index():
     return FileResponse("static/index.html")
