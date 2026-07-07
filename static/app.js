@@ -164,33 +164,72 @@ async function handleRenameUser() {
     }
 }
 
+let deleteUserConfirmCount = 0;
+let deleteUserConfirmTimer = null;
+
+function resetDeleteUserBtn() {
+    deleteUserConfirmCount = 0;
+    if (deleteUserConfirmTimer) {
+        clearTimeout(deleteUserConfirmTimer);
+        deleteUserConfirmTimer = null;
+    }
+    if (deleteUserBtn) {
+        deleteUserBtn.textContent = "🗑️ 刪除";
+        deleteUserBtn.className = "btn-user-action delete";
+    }
+}
+
 async function handleDeleteUser() {
     if (!currentUser) return;
     if (users.length <= 1) {
         alert("必須保留至少一個使用者！");
         return;
     }
-    if (!confirm(`確定要刪除使用者「${currentUser.username}」嗎？這將會刪除其名下的所有自訂清單與追蹤股票。`)) {
+    
+    // 清除既有的重設計時器
+    if (deleteUserConfirmTimer) {
+        clearTimeout(deleteUserConfirmTimer);
+        deleteUserConfirmTimer = null;
+    }
+    
+    deleteUserConfirmCount++;
+    
+    if (deleteUserConfirmCount === 1) {
+        deleteUserBtn.textContent = "確認 1/3";
+        deleteUserBtn.className = "btn-user-action delete confirming-1";
+    } else if (deleteUserConfirmCount === 2) {
+        deleteUserBtn.textContent = "確認 2/3";
+        deleteUserBtn.className = "btn-user-action delete confirming-2";
+    } else if (deleteUserConfirmCount === 3) {
+        deleteUserBtn.textContent = "確認 3/3";
+        try {
+            const res = await fetch(`${API_BASE}/api/users/${currentUser.id}`, {
+                method: "DELETE"
+            });
+            const data = await res.json();
+            if (data.success) {
+                users = users.filter(u => u.id !== currentUser.id);
+                currentUser = users[0];
+                userSelector.value = currentUser.id;
+                localStorage.setItem("myStock_currentUserId", currentUser.id);
+                resetDeleteUserBtn();
+                renderUserSelector();
+                await loadWatchlists();
+            } else {
+                alert("刪除使用者失敗：" + (data.error || "未知錯誤"));
+                resetDeleteUserBtn();
+            }
+        } catch (err) {
+            console.error("Delete user error:", err);
+            resetDeleteUserBtn();
+        }
         return;
     }
-    try {
-        const res = await fetch(`${API_BASE}/api/users/${currentUser.id}`, {
-            method: "DELETE"
-        });
-        const data = await res.json();
-        if (data.success) {
-            users = users.filter(u => u.id !== currentUser.id);
-            currentUser = users[0];
-            userSelector.value = currentUser.id;
-            localStorage.setItem("myStock_currentUserId", currentUser.id);
-            renderUserSelector();
-            await loadWatchlists();
-        } else {
-            alert("刪除使用者失敗：" + (data.error || "未知錯誤"));
-        }
-    } catch (err) {
-        console.error("Delete user error:", err);
-    }
+    
+    // 設定 3 秒後未再次點擊則重設按鈕狀態
+    deleteUserConfirmTimer = setTimeout(() => {
+        resetDeleteUserBtn();
+    }, 3000);
 }
 
 // ========== Watchlists Categories API ==========
@@ -1863,6 +1902,7 @@ async function init() {
         if (user) {
             currentUser = user;
             localStorage.setItem("myStock_currentUserId", user.id);
+            resetDeleteUserBtn();
             loadWatchlists();
         }
     });
