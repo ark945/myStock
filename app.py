@@ -1016,18 +1016,17 @@ def api_delete_watchlist(symbol: str, watchlist_id: int = Query(...)):
 
 def _fetch_wantgoo_indices() -> dict:
     """從玩股網 API 取得即時全球指數"""
+    from curl_cffi import requests as curl_requests
     url = "https://www.wantgoo.com/global/all-quote-info"
-    req = urllib.request.Request(
-        url,
-        headers={
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*',
-            'Referer': 'https://www.wantgoo.com/global'
-        }
-    )
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Referer': 'https://www.wantgoo.com/global'
+    }
     try:
-        with urllib.request.urlopen(req, timeout=5) as response:
-            data = json.loads(response.read().decode('utf-8'))
+        r = curl_requests.get(url, headers=headers, impersonate="chrome", timeout=5)
+        if r.status_code == 200:
+            data = r.json()
             mapping = {
                 "DJI": "^DJI",
                 "SP5": "^GSPC",
@@ -1051,6 +1050,9 @@ def _fetch_wantgoo_indices() -> dict:
                         "prev_close": prev_close
                     }
             return results
+        else:
+            print(f"Error fetching WantGoo indices: status code {r.status_code}")
+            return {}
     except Exception as e:
         print(f"Error fetching WantGoo indices: {e}")
         return {}
@@ -1058,19 +1060,20 @@ def _fetch_wantgoo_indices() -> dict:
 
 @app.get("/api/debug-wantgoo")
 def api_debug_wantgoo():
+    from curl_cffi import requests as curl_requests
     url = "https://www.wantgoo.com/global/all-quote-info"
-    req = urllib.request.Request(
-        url,
-        headers={
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*',
-            'Referer': 'https://www.wantgoo.com/global'
-        }
-    )
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Referer': 'https://www.wantgoo.com/global'
+    }
     try:
-        with urllib.request.urlopen(req, timeout=5) as response:
-            data = json.loads(response.read().decode('utf-8'))
-            return {"success": True, "items_count": len(data)}
+        r = curl_requests.get(url, headers=headers, impersonate="chrome", timeout=5)
+        return {
+            "success": r.status_code == 200,
+            "status_code": r.status_code,
+            "items_count": len(r.json()) if r.status_code == 200 else 0
+        }
     except Exception as e:
         return {"success": False, "error": str(e), "error_type": str(type(e))}
 
