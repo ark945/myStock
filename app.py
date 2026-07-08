@@ -1014,6 +1014,48 @@ def api_delete_watchlist(symbol: str, watchlist_id: int = Query(...)):
         return {"success": False, "error": str(e)}
 
 
+def _fetch_wantgoo_indices() -> dict:
+    """從玩股網 API 取得即時全球指數"""
+    url = "https://www.wantgoo.com/global/all-quote-info"
+    req = urllib.request.Request(
+        url,
+        headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Referer': 'https://www.wantgoo.com/global'
+        }
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            mapping = {
+                "DJI": "^DJI",
+                "SP5": "^GSPC",
+                "NAS": "^IXIC",
+                "SOX": "^SOX",
+                "NKI": "^N225",
+                "TPX": "^TPX",
+                "KOR": "^KS11",
+                "STX": "^KQ11"
+            }
+            results = {}
+            for item in data:
+                item_id = item.get("id")
+                if item_id in mapping:
+                    symbol = mapping[item_id]
+                    price = item.get("close")
+                    prev_close = item.get("previousClose")
+                    results[symbol] = {
+                        "symbol": symbol,
+                        "price": price,
+                        "prev_close": prev_close
+                    }
+            return results
+    except Exception as e:
+        print(f"Error fetching WantGoo indices: {e}")
+        return {}
+
+
 @app.get("/api/market-overview")
 def api_market_overview():
     """取得美、日、韓市場指數與代表個股"""
@@ -1029,6 +1071,21 @@ def api_market_overview():
         
         # 批次抓取報價，帶有基本面與歷史走勢 (因為要畫 sparkline)
         quotes = get_quotes(all_symbols, fetch_fundamentals=True)
+        
+        # 嘗試從玩股網取得即時指數進行覆蓋
+        try:
+            wg_indices = _fetch_wantgoo_indices()
+            for q in quotes:
+                symbol = q.get("symbol")
+                if symbol in wg_indices:
+                    wg_data = wg_indices[symbol]
+                    if wg_data.get("price") is not None:
+                        q["price"] = wg_data["price"]
+                    if wg_data.get("prev_close") is not None:
+                        q["prev_close"] = wg_data["prev_close"]
+                    q["success"] = True
+        except Exception as wge:
+            print(f"Failed to override indices with WantGoo: {wge}")
         
         # 定義每個 Symbol 的中文名稱對照，因為 fast_info 不含名稱
         names_map = {
