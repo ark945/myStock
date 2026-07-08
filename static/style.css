@@ -468,8 +468,10 @@ body {
 
 .table-header-bar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
     margin-bottom: 12px;
     padding: 0 4px;
 }
@@ -478,12 +480,14 @@ body {
     font-size: 20px;
     font-weight: 700;
     color: var(--text-primary);
+    white-space: nowrap;
 }
 
 .watchlist-title-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
+    flex-wrap: wrap;
 }
 
 .index-quick {
@@ -495,6 +499,7 @@ body {
     font-variant-numeric: tabular-nums;
     background: rgba(148, 163, 184, 0.08);
     color: var(--text-secondary);
+    white-space: nowrap;
 }
 
 .index-quick.up {
@@ -516,7 +521,8 @@ body {
 .watchlist-stats {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 8px 12px;
+    flex-wrap: wrap;
 }
 
 .stock-count {
@@ -526,6 +532,7 @@ body {
     padding: 4px 14px;
     border-radius: 100px;
     border: 1px solid var(--border-subtle);
+    white-space: nowrap;
 }
 
 .stock-stat {
@@ -535,6 +542,7 @@ body {
     border: 1px solid var(--border-subtle);
     font-weight: 600;
     transition: all var(--transition-fast);
+    white-space: nowrap;
 }
 
 .stock-up-count {
@@ -559,6 +567,7 @@ body {
     font-size: 13px;
     color: var(--text-secondary);
     font-weight: 500;
+    white-space: nowrap;
 }
 
 .market-stats-meta {
@@ -566,6 +575,7 @@ body {
     color: var(--text-muted);
     letter-spacing: 0.2px;
     margin-left: 2px;
+    white-space: nowrap;
 }
 
 
@@ -652,9 +662,10 @@ body {
 
 .cell-name {
     color: var(--text-primary) !important;
-    max-width: 180px;
+    max-width: 9rem;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .cell-composite {
@@ -1213,7 +1224,6 @@ body {
 
     .stock-table {
         font-size: 13px;
-        min-width: 700px;
     }
 
     .stock-table thead th,
@@ -1222,7 +1232,7 @@ body {
     }
 
     .cell-name {
-        max-width: 100px;
+        max-width: 6rem;
     }
 }
 
@@ -1255,7 +1265,7 @@ body {
     }
 
     .cell-name {
-        max-width: 70px;
+        max-width: 4.5rem;
         font-size: 12px;
     }
 
@@ -1282,15 +1292,24 @@ body {
 /* ============================================
    Watchlist Reordering (拖曳與排序樣式)
    ============================================ */
-.col-drag {
-    width: 44px;
+.col-drag,
+.cell-drag {
+    width: 2.75rem !important;
+    min-width: 2.75rem !important;
+    max-width: 2.75rem !important;
     text-align: center;
 }
 
 .cell-drag {
-    text-align: center;
-    width: 44px;
-    padding: 16px 0 !important;
+    padding: 1rem 0 !important;
+}
+
+/* Global sticky column dimensions to prevent squeezing and overlapping */
+th.col-sticky,
+td.col-sticky {
+    width: 11rem !important;
+    min-width: 11rem !important;
+    max-width: 11rem !important;
 }
 
 .drag-handle {
@@ -1688,13 +1707,13 @@ tr.dragging {
     display: block;
 }
 
-/* Sticky column support for horizontal scrolling on mobile/narrow viewports (< 1200px) */
-@media (max-width: 1200px) {
+/* Sticky column support for horizontal scrolling on mobile/narrow viewports (< 85rem) */
+@media (max-width: 85rem) {
     .stock-table {
-        min-width: 1200px !important; /* Force minimum width to enable horizontal scrollbar */
+        min-width: 82rem !important; /* Force minimum width to enable horizontal scrollbar */
     }
 
-    /* 1. Watchlist table (#stockTable) has drag handles column (0px) and stock info column (44px) */
+    /* 1. Watchlist table (#stockTable) has drag handles column (0px) and stock info column (2.75rem) */
     #stockTable th.col-drag,
     #stockTable td.cell-drag {
         position: sticky;
@@ -1706,7 +1725,7 @@ tr.dragging {
     #stockTable th.col-sticky,
     #stockTable td.col-sticky {
         position: sticky;
-        left: 44px;
+        left: 2.75rem; /* Matches drag column width */
         z-index: 10;
         background-color: #0d1222 !important;
         box-shadow: 4px 0 8px rgba(0, 0, 0, 0.4); /* Shadow on the right side of stock info column */
@@ -1797,13 +1816,13 @@ tr.dragging {
     grid-template-columns: repeat(2, 1fr);
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 85rem) {
     #usIndexCards, #jpIndexCards, #krIndexCards {
         grid-template-columns: repeat(2, 1fr);
     }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 37.5rem) {
     #usIndexCards, #jpIndexCards, #krIndexCards {
         grid-template-columns: 1fr;
     }
@@ -2093,7 +2112,7 @@ tr.dragging {
     margin-top: 10px;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 37.5rem) {
     .chip-row-grid {
         grid-template-columns: 1fr;
     }

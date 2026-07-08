@@ -979,7 +979,11 @@ async function fetchQuotes() {
     try {
         const prevPrices = { ...latestPrices };
 
-        const res = await fetch(`${API_BASE}/api/watchlist`);
+        let url = `${API_BASE}/api/watchlist`;
+        if (currentWatchlist) {
+            url += `?watchlist_id=${currentWatchlist.id}`;
+        }
+        const res = await fetch(url);
         const data = await res.json();
 
         if (data.success) {
@@ -2274,7 +2278,8 @@ async function quickAddStock(symbol, name, market) {
                 market: market,
                 entry_date: new Date().toISOString().split("T")[0],
                 entry_price: null,
-                target_price: 0
+                target_price: 0,
+                watchlist_id: currentWatchlist ? currentWatchlist.id : null
             }),
         });
         const result = await response.json();
