@@ -1046,9 +1046,22 @@ body {
     background: rgba(56, 189, 248, 0.15);
 }
 
-.dividend-date {
-    color: var(--text-secondary);
+.dividend-dates-col {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.dividend-date-row {
+    color: var(--text-primary);
     font-size: 13px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+}
+
+.dividend-pay-date {
+    color: var(--text-secondary);
+    font-size: 12px;
     font-variant-numeric: tabular-nums;
 }
 

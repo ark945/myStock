@@ -549,10 +549,19 @@ async function openDividendModal(symbol) {
                     : `${item.value} (${item.unit || "比例"})`;
                 const typeClass = item.type === "cash" ? "cash" : "stock";
                 const typeName = item.type === "cash" ? "配息" : "配股/分割";
+                const exDateLabel = item.type === "cash" ? "除息日" : "除權日";
+                
+                const payDateHtml = item.payment_date
+                    ? `<div class="dividend-pay-date">發放日: ${escapeHtml(item.payment_date)}</div>`
+                    : ``;
+                
                 return `
                     <div class="dividend-item">
                         <span class="dividend-type ${typeClass}">${typeName}</span>
-                        <span class="dividend-date">${escapeHtml(item.date || "—")}</span>
+                        <div class="dividend-dates-col">
+                            <div class="dividend-date-row">${exDateLabel}: ${escapeHtml(item.date || "—")}</div>
+                            ${payDateHtml}
+                        </div>
                         <span class="dividend-value">${escapeHtml(String(valueText))}</span>
                     </div>
                 `;
