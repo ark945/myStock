@@ -1058,26 +1058,6 @@ def _fetch_wantgoo_indices() -> dict:
         return {}
 
 
-@app.get("/api/debug-wantgoo")
-def api_debug_wantgoo():
-    from curl_cffi import requests as curl_requests
-    url = "https://www.wantgoo.com/global/all-quote-info"
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/plain, */*',
-        'Referer': 'https://www.wantgoo.com/global'
-    }
-    try:
-        r = curl_requests.get(url, headers=headers, impersonate="chrome", timeout=5)
-        return {
-            "success": r.status_code == 200,
-            "status_code": r.status_code,
-            "items_count": len(r.json()) if r.status_code == 200 else 0
-        }
-    except Exception as e:
-        return {"success": False, "error": str(e), "error_type": str(type(e))}
-
-
 @app.get("/api/market-overview")
 def api_market_overview():
     """取得美、日、韓市場指數與代表個股"""
@@ -1089,10 +1069,16 @@ def api_market_overview():
         # 韓股指數 + 熱門個股
         kr_symbols = ["^KS11", "^KQ11", "005930.KS", "000660.KS", "005380.KS"]
         
-        all_symbols = us_symbols + jp_symbols + kr_symbols
+        # 為了避免 ^TPX (CBOE 指數) 回傳錯誤數值，在 yfinance 抓取時改用 TOPIX ETF (1308.T)
+        fetch_symbols = [s if s != "^TPX" else "1308.T" for s in (us_symbols + jp_symbols + kr_symbols)]
         
         # 批次抓取報價，帶有基本面與歷史走勢 (因為要畫 sparkline)
-        quotes = get_quotes(all_symbols, fetch_fundamentals=True)
+        quotes = get_quotes(fetch_symbols, fetch_fundamentals=True)
+        
+        # 將 1308.T 改回 ^TPX，使前端正常識別為指數卡片
+        for q in quotes:
+            if q.get("symbol") == "1308.T":
+                q["symbol"] = "^TPX"
         
         # 嘗試從玩股網取得即時指數進行覆蓋
         try:
