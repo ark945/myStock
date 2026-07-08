@@ -1056,6 +1056,25 @@ def _fetch_wantgoo_indices() -> dict:
         return {}
 
 
+@app.get("/api/debug-wantgoo")
+def api_debug_wantgoo():
+    url = "https://www.wantgoo.com/global/all-quote-info"
+    req = urllib.request.Request(
+        url,
+        headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Referer': 'https://www.wantgoo.com/global'
+        }
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            return {"success": True, "items_count": len(data)}
+    except Exception as e:
+        return {"success": False, "error": str(e), "error_type": str(type(e))}
+
+
 @app.get("/api/market-overview")
 def api_market_overview():
     """取得美、日、韓市場指數與代表個股"""
