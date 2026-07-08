@@ -555,11 +555,13 @@ async function openDividendModal(symbol) {
                     ? `<div class="dividend-pay-date">發放日: ${escapeHtml(item.payment_date)}</div>`
                     : ``;
                 
+                const periodText = item.period ? ` (${item.period})` : "";
+                
                 return `
                     <div class="dividend-item">
                         <span class="dividend-type ${typeClass}">${typeName}</span>
                         <div class="dividend-dates-col">
-                            <div class="dividend-date-row">${exDateLabel}: ${escapeHtml(item.date || "—")}</div>
+                            <div class="dividend-date-row">${exDateLabel}: ${escapeHtml(item.date || "—")}${periodText}</div>
                             ${payDateHtml}
                         </div>
                         <span class="dividend-value">${escapeHtml(String(valueText))}</span>

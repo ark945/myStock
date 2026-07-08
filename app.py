@@ -358,6 +358,7 @@ def _fetch_tw_yahoo_announced_dividend(symbol: str, year: int) -> list[dict]:
             items.append({
                 "type": "cash",
                 "label": f"配息 ({period})",
+                "period": period,
                 "date": ex_date if ex_date and ex_date != "-" else (cash_pay_date if cash_pay_date and cash_pay_date != "-" else f"{year}-01-01"),
                 "payment_date": cash_pay_date if cash_pay_date and cash_pay_date != "-" else None,
                 "value": round(cash_div, 4),
@@ -369,6 +370,7 @@ def _fetch_tw_yahoo_announced_dividend(symbol: str, year: int) -> list[dict]:
             items.append({
                 "type": "stock",
                 "label": f"配股 ({period})",
+                "period": period,
                 "date": right_date if right_date and right_date != "-" else (stock_pay_date if stock_pay_date and stock_pay_date != "-" else f"{year}-01-01"),
                 "payment_date": stock_pay_date if stock_pay_date and stock_pay_date != "-" else None,
                 "value": round(stock_div, 4),
@@ -418,6 +420,7 @@ def api_dividend_info(
                             cash_items.append({
                                 "type": "cash",
                                 "label": "配息",
+                                "period": None,
                                 "date": dt.strftime('%Y-%m-%d'),
                                 "payment_date": None,
                                 "value": round(float(val), 4),
@@ -436,6 +439,7 @@ def api_dividend_info(
                             stock_items.append({
                                 "type": "stock",
                                 "label": "配股/分割",
+                                "period": None,
                                 "date": dt.strftime('%Y-%m-%d'),
                                 "payment_date": None,
                                 "value": round(ratio_f, 4),

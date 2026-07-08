@@ -1017,9 +1017,9 @@ body {
 
 .dividend-item {
     display: grid;
-    grid-template-columns: 88px 1fr 1.4fr;
+    grid-template-columns: auto 1fr auto;
     align-items: center;
-    gap: 10px;
+    gap: 15px;
     padding: 10px 12px;
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
@@ -1034,6 +1034,7 @@ body {
     padding: 4px 8px;
     font-size: 12px;
     font-weight: 700;
+    white-space: nowrap;
 }
 
 .dividend-type.cash {
@@ -1057,12 +1058,14 @@ body {
     font-size: 13px;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
 .dividend-pay-date {
     color: var(--text-secondary);
     font-size: 12px;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
 .dividend-value {
@@ -1070,6 +1073,7 @@ body {
     font-size: 13px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
+    text-align: right;
 }
 
 .dividend-loading,
