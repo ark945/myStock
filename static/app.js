@@ -112,12 +112,34 @@ async function loadUsers() {
             
             let matchedUser = null;
             if (urlUser) {
-                const urlUserTrimmed = urlUser.trim().toLowerCase();
-                // 優先比對 username (不區分大小寫)
-                matchedUser = users.find(u => u.username.toLowerCase() === urlUserTrimmed);
-                // 其次比對 ID
-                if (!matchedUser) {
-                    matchedUser = users.find(u => String(u.id) === urlUserTrimmed);
+                const urlUserTrimmed = urlUser.trim();
+                if (urlUserTrimmed) {
+                    const urlUserLower = urlUserTrimmed.toLowerCase();
+                    // 優先比對 username (不區分大小寫)
+                    matchedUser = users.find(u => u.username.toLowerCase() === urlUserLower);
+                    // 其次比對 ID
+                    if (!matchedUser) {
+                        matchedUser = users.find(u => String(u.id) === urlUserLower);
+                    }
+                    
+                    // 如果在網址列打上一個不存在的使用者名稱，自動為其建立該使用者
+                    if (!matchedUser) {
+                        try {
+                            const resCreate = await fetch(`${API_BASE}/api/users`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ username: urlUserTrimmed })
+                            });
+                            const dataCreate = await resCreate.json();
+                            if (dataCreate.success) {
+                                matchedUser = dataCreate.data;
+                                users.push(matchedUser);
+                                renderUserSelector();
+                            }
+                        } catch (err) {
+                            console.error("自動建立網址列使用者失敗:", err);
+                        }
+                    }
                 }
             }
             
