@@ -86,6 +86,18 @@ const chipMarginBody = document.getElementById("chipMarginBody");
 const chipHoldersContainer = document.getElementById("chipHoldersContainer");
 
 // ========== User Profiles API ==========
+// 更新網址列的 user 參數，確保與當前選取的使用者同步
+function updateUserUrl(username) {
+    try {
+        const url = new URL(window.location.href);
+        url.searchParams.set("user", username);
+        url.searchParams.delete("username"); // 清除舊的參數以保持簡潔
+        window.history.replaceState(null, "", url.toString());
+    } catch (err) {
+        console.error("更新網址列失敗:", err);
+    }
+}
+
 async function loadUsers() {
     try {
         const res = await fetch(`${API_BASE}/api/users`);
@@ -120,7 +132,7 @@ async function loadUsers() {
             
             userSelector.value = currentUser.id;
             localStorage.setItem("myStock_currentUserId", currentUser.id);
-            
+            updateUserUrl(currentUser.username);
             await loadWatchlists();
         }
     } catch (err) {
@@ -153,6 +165,7 @@ async function handleAddUser() {
             currentUser = data.data;
             userSelector.value = currentUser.id;
             localStorage.setItem("myStock_currentUserId", currentUser.id);
+            updateUserUrl(currentUser.username);
             await loadWatchlists();
         } else {
             alert("新增使用者失敗：" + (data.error || "未知錯誤"));
@@ -177,6 +190,7 @@ async function handleRenameUser() {
             currentUser.username = data.data.username;
             const option = userSelector.querySelector(`option[value="${currentUser.id}"]`);
             if (option) option.textContent = data.data.username;
+            updateUserUrl(currentUser.username);
         } else {
             alert("修改使用者名稱失敗：" + (data.error || "未知錯誤"));
         }
@@ -233,6 +247,7 @@ async function handleDeleteUser() {
                 currentUser = users[0];
                 userSelector.value = currentUser.id;
                 localStorage.setItem("myStock_currentUserId", currentUser.id);
+                updateUserUrl(currentUser.username);
                 resetDeleteUserBtn();
                 renderUserSelector();
                 await loadWatchlists();
@@ -1938,6 +1953,7 @@ async function init() {
         if (user) {
             currentUser = user;
             localStorage.setItem("myStock_currentUserId", user.id);
+            updateUserUrl(user.username);
             resetDeleteUserBtn();
             loadWatchlists();
         }
