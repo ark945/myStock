@@ -72,14 +72,15 @@ async def price_updater_loop():
             symbols = list(set(row["symbol"] for row in rows if row.get("symbol")))
             
             if symbols:
-                # 檢查是否有任何股票的基本面欄位、走勢或新財務指標仍為空
-                has_empty_fundamentals = any(
-                    (r.get("pe_ratio") is None and r.get("dividend_yield") is None and r.get("beta") is None) or not r.get("sparkline_data") or r.get("roe") is None or r.get("market_cap") is None
+                # 檢查是否有任何股票尚未進行過初始化（price_updated_at 為空）
+                has_uninitialized = any(
+                    r.get("price_updated_at") is None
                     for r in rows
                 )
                 
                 # 每 24 小時（計數器 1440 輪）或有新股未初始化時，抓取完整基本面
-                do_fetch_fundamentals = (loop_count % 1440 == 0) or has_empty_fundamentals
+                do_fetch_fundamentals = (loop_count % 1440 == 0) or has_uninitialized
+
                 
                 # B. 呼叫 get_quotes 批次抓取 (使用 to_thread)
                 quotes = await asyncio.to_thread(get_quotes, symbols, fetch_fundamentals=do_fetch_fundamentals)
@@ -1086,10 +1087,10 @@ def _fetch_wantgoo_indices() -> dict:
                     }
             return results
         else:
-            print(f"Error fetching WantGoo indices: status code {r.status_code}")
+            print(f"WantGoo indices override not available: status code {r.status_code} (using Yahoo Finance instead)")
             return {}
     except Exception as e:
-        print(f"Error fetching WantGoo indices: {e}")
+        print(f"WantGoo indices override not available: {e} (using Yahoo Finance instead)")
         return {}
 
 

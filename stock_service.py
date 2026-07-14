@@ -34,6 +34,7 @@ def _get_market_by_symbol(symbol: str) -> str:
 
 # --- 台股交易時段與快取機制 ---
 _tw_quotes_cache = {}  # 格式: { symbol: { "data": quote_dict, "fetched_at": float_timestamp, "has_fundamentals": bool } }
+_us_quotes_cache = {}  # 格式: { symbol: { "data": quote_dict, "price_fetched_at": float_timestamp, "fundamentals_fetched_at": float_timestamp } }
 
 
 def is_taiwan_market_hours() -> bool:
@@ -608,103 +609,161 @@ def get_quotes(symbols: list[str], fetch_fundamentals: bool = False) -> list[dic
 
     # --- 美股/外國股即時報價與基本面 ---
     if us_symbols:
-        try:
-            tickers = yf.Tickers(" ".join(us_symbols))
-            for sym in us_symbols:
-                try:
-                    ticker = tickers.tickers.get(sym.upper())
-                    if ticker:
-                        fast = ticker.fast_info
-                        price = fast.get("lastPrice") or fast.get("last_price")
-                        prev_close = fast.get("previousClose") or fast.get("previous_close")
-                        fifty_two_week_low = fast.get("yearLow")
-                        fifty_two_week_high = fast.get("yearHigh")
-                        ma_50 = fast.get("fiftyDayAverage")
-                        ma_200 = fast.get("twoHundredDayAverage")
-                        market_cap = fast.get("marketCap")
-                        volume = fast.get("lastVolume") or fast.get("volume")
+        now = time.time()
+        us_to_fetch_price = []
+        us_to_fetch_fundamentals = []
+        
+        for sym in us_symbols:
+            sym_upper = sym.upper()
+            cached = _us_quotes_cache.get(sym_upper)
+            
+            # Check price validity (TTL = 30s)
+            need_price = True
+            if cached and (now - cached["price_fetched_at"]) < 30:
+                need_price = False
+                
+            # Check fundamentals validity (TTL = 12h = 43200s)
+            need_fundamentals = False
+            if fetch_fundamentals:
+                if not cached or "fundamentals_fetched_at" not in cached or (now - cached["fundamentals_fetched_at"]) > 43200:
+                    need_fundamentals = True
+            
+            if need_price or need_fundamentals:
+                us_to_fetch_price.append(sym)
+                if need_fundamentals:
+                    us_to_fetch_fundamentals.append(sym)
+            else:
+                # Cache is valid for both requested parts, reuse it
+                results.append(cached["data"])
+                
+        if us_to_fetch_price:
+            try:
+                tickers = yf.Tickers(" ".join(us_to_fetch_price))
+                for sym in us_to_fetch_price:
+                    sym_upper = sym.upper()
+                    try:
+                        ticker = tickers.tickers.get(sym_upper)
+                        if ticker:
+                            fast = ticker.fast_info
+                            price = fast.get("lastPrice") or fast.get("last_price")
+                            prev_close = fast.get("previousClose") or fast.get("previous_close")
+                            fifty_two_week_low = fast.get("yearLow")
+                            fifty_two_week_high = fast.get("yearHigh")
+                            ma_50 = fast.get("fiftyDayAverage")
+                            ma_200 = fast.get("twoHundredDayAverage")
+                            market_cap = fast.get("marketCap")
+                            volume = fast.get("lastVolume") or fast.get("volume")
 
-                        pe_ratio = None
-                        dividend_yield = None
-                        beta = None
-                        current_ratio = None
-                        roe = None
-                        revenue_growth = None
-                        sparkline_data = None
-                        
-                        if fetch_fundamentals:
-                            try:
-                                inf = ticker.info
-                                pe_ratio = inf.get("trailingPE") or inf.get("forwardPE")
-                                dividend_yield = inf.get("dividendYield")
-                                beta = inf.get("beta")
-                                current_ratio = inf.get("currentRatio")
-                                roe = inf.get("returnOnEquity")
-                                revenue_growth = inf.get("revenueGrowth")
-                            except Exception as fe:
-                                print(f"取得美股 {sym} 基本面失敗: {fe}")
+                            # Get existing cached data if any
+                            existing = _us_quotes_cache.get(sym_upper, {})
+                            existing_data = existing.get("data", {})
+                            
+                            pe_ratio = existing_data.get("pe_ratio")
+                            dividend_yield = existing_data.get("dividend_yield")
+                            beta = existing_data.get("beta")
+                            current_ratio = existing_data.get("current_ratio")
+                            roe = existing_data.get("roe")
+                            revenue_growth = existing_data.get("revenue_growth")
+                            sparkline_data = existing_data.get("sparkline_data")
+                            
+                            fundamentals_fetched_at = existing.get("fundamentals_fetched_at", 0)
+                            
+                            if sym in us_to_fetch_fundamentals:
+                                try:
+                                    inf = ticker.info
+                                    pe_ratio = inf.get("trailingPE") or inf.get("forwardPE")
+                                    dividend_yield = inf.get("dividendYield")
+                                    beta = inf.get("beta")
+                                    current_ratio = inf.get("currentRatio")
+                                    roe = inf.get("returnOnEquity")
+                                    revenue_growth = inf.get("revenueGrowth")
+                                except Exception as fe:
+                                    print(f"取得美股 {sym} 基本面失敗: {fe}")
 
-                            try:
-                                hist = ticker.history(period="1mo")
-                                if not hist.empty:
-                                    prices = list(hist["Close"].round(2))
-                                    sparkline_data = ",".join(map(str, prices))
-                            except Exception as he:
-                                print(f"取得美股 {sym} 走勢圖歷史失敗: {he}")
+                                try:
+                                    hist = ticker.history(period="1mo")
+                                    if not hist.empty:
+                                        prices = list(hist["Close"].round(2))
+                                        sparkline_data = ",".join(map(str, prices))
+                                except Exception as he:
+                                    print(f"取得美股 {sym} 走勢圖歷史失敗: {he}")
+                                
+                                fundamentals_fetched_at = now
 
-                        results.append({
-                            "symbol": sym.upper(),
-                            "name": "",  # fast_info 不含名稱，前端已有快取
-                            "price": _safe_float(price),
-                            "prev_close": _safe_float(prev_close),
-                            "fifty_two_week_low": _safe_float(fifty_two_week_low),
-                            "fifty_two_week_high": _safe_float(fifty_two_week_high),
-                            "ma_50": _safe_float(ma_50),
-                            "ma_200": _safe_float(ma_200),
-                            "pe_ratio": _safe_float(pe_ratio),
-                            "dividend_yield": _safe_float(dividend_yield),
-                            "beta": _safe_float(beta, 3),
-                            "current_ratio": _safe_float(current_ratio),
-                            "sparkline_data": sparkline_data,
-                            "market_cap": _safe_float(market_cap),
-                            "volume": _safe_int(volume),
-                            "roe": _safe_float(roe, 4),
-                            "revenue_growth": _safe_float(revenue_growth, 4),
-                            "market": _get_market_by_symbol(sym),
-                            "timestamp": "",
-                            "success": price is not None,
-                        })
+                            quote_data = {
+                                "symbol": sym_upper,
+                                "name": "",  # fast_info 不含名稱，前端已有快取
+                                "price": _safe_float(price),
+                                "prev_close": _safe_float(prev_close),
+                                "fifty_two_week_low": _safe_float(fifty_two_week_low),
+                                "fifty_two_week_high": _safe_float(fifty_two_week_high),
+                                "ma_50": _safe_float(ma_50),
+                                "ma_200": _safe_float(ma_200),
+                                "pe_ratio": _safe_float(pe_ratio),
+                                "dividend_yield": _safe_float(dividend_yield),
+                                "beta": _safe_float(beta, 3),
+                                "current_ratio": _safe_float(current_ratio),
+                                "sparkline_data": sparkline_data,
+                                "market_cap": _safe_float(market_cap),
+                                "volume": _safe_int(volume),
+                                "roe": _safe_float(roe, 4),
+                                "revenue_growth": _safe_float(revenue_growth, 4),
+                                "market": _get_market_by_symbol(sym),
+                                "timestamp": "",
+                                "success": price is not None,
+                            }
+                            
+                            # Cache the result
+                            _us_quotes_cache[sym_upper] = {
+                                "data": quote_data,
+                                "price_fetched_at": now,
+                                "fundamentals_fetched_at": fundamentals_fetched_at
+                            }
+                            results.append(quote_data)
+                        else:
+                            # Fallback if ticker not found but check if cached exists
+                            if sym_upper in _us_quotes_cache:
+                                results.append(_us_quotes_cache[sym_upper]["data"])
+                            else:
+                                results.append({
+                                    "symbol": sym_upper,
+                                    "name": "",
+                                    "price": None,
+                                    "market": _get_market_by_symbol(sym),
+                                    "timestamp": "",
+                                    "success": False,
+                                    "error": "Ticker not found",
+                                })
+                    except Exception as e:
+                        if sym_upper in _us_quotes_cache:
+                            results.append(_us_quotes_cache[sym_upper]["data"])
+                        else:
+                            results.append({
+                                "symbol": sym_upper,
+                                "name": "",
+                                "price": None,
+                                "market": _get_market_by_symbol(sym),
+                                "timestamp": "",
+                                "success": False,
+                                "error": str(e),
+                            })
+            except Exception as e:
+                # If Tickers batch fetch fails completely, fallback to cache or return failure
+                for sym in us_to_fetch_price:
+                    sym_upper = sym.upper()
+                    if sym_upper in _us_quotes_cache:
+                        results.append(_us_quotes_cache[sym_upper]["data"])
                     else:
                         results.append({
-                            "symbol": sym.upper(),
+                            "symbol": sym_upper,
                             "name": "",
                             "price": None,
                             "market": _get_market_by_symbol(sym),
                             "timestamp": "",
                             "success": False,
-                            "error": "Ticker not found",
+                            "error": str(e),
                         })
-                except Exception as e:
-                    results.append({
-                        "symbol": sym.upper(),
-                        "name": "",
-                        "price": None,
-                        "market": _get_market_by_symbol(sym),
-                        "timestamp": "",
-                        "success": False,
-                        "error": str(e),
-                    })
-        except Exception as e:
-            for sym in us_symbols:
-                results.append({
-                    "symbol": sym.upper(),
-                    "name": "",
-                    "price": None,
-                    "market": _get_market_by_symbol(sym),
-                    "timestamp": "",
-                    "success": False,
-                    "error": str(e),
-                })
+
 
     # 確保回傳結果的順序與輸入的 symbols 完全一致
     quotes_by_sym = {q["symbol"]: q for q in results}
