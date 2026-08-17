@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>myStock 系統簡報</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --primary: #6366f1;
+            --primary-light: #818cf8;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --accent-green: #22c55e;
+            --accent-red: #ef4444;
+            --accent-yellow: #eab308;
+        }
+        
+        body {
+            font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        .slide-container {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .slide {
+            width: 100vw;
+            height: 100vh;
+            display: none;
+            padding: 60px 80px;
+            position: relative;
+            overflow-y: auto;
+        }
+        
+        .slide.active { display: flex; flex-direction: column; }
+        
+        .slide-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 40px;
+            background: linear-gradient(135deg, var(--primary-light), #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .slide-subtitle {
+            font-size: 1.3rem;
+            color: var(--text-muted);
+            margin-bottom: 30px;
+        }
+        
+        /* Cover Slide */
+        .cover {
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            background: radial-gradient(ellipse at center, #1e1b4b 0%, var(--bg-dark) 70%);
+        }
+        
+        .cover .logo { font-size: 5rem; margin-bottom: 20px; }
+        .cover h1 { font-size: 4rem; margin-bottom: 15px; background: linear-gradient(135deg, #818cf8, #a78bfa, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .cover .tagline { font-size: 1.5rem; color: var(--text-muted); margin-bottom: 40px; }
+        .cover .url { font-size: 1.1rem; color: var(--primary-light); background: rgba(99,102,241,0.1); padding: 10px 25px; border-radius: 8px; border: 1px solid rgba(99,102,241,0.3); }
+        .cover .meta { margin-top: 50px; color: var(--text-muted); font-size: 0.9rem; }
+        
+        /* Content layouts */
+        .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; flex: 1; }
+        .content-full { flex: 1; display: flex; flex-direction: column; gap: 20px; }
+        
+        .card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 25px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .card h3 {
+            font-size: 1.2rem;
+            color: var(--primary-light);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .card ul { list-style: none; padding: 0; }
+        .card ul li { 
+            padding: 8px 0; 
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        .card ul li:last-child { border-bottom: none; }
+        .card ul li::before { content: "•"; color: var(--primary-light); font-weight: bold; }
+        
+        /* Architecture diagram */
+        .arch-diagram {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 40px;
+            border: 1px solid rgba(255,255,255,0.05);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            white-space: pre;
+            overflow: auto;
+        }
+        
+        /* Table styles */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        
+        .data-table th {
+            background: rgba(99,102,241,0.15);
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--primary-light);
+            border-bottom: 2px solid rgba(99,102,241,0.3);
+        }
+        
+        .data-table td {
+            padding: 10px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .data-table tr:hover td { background: rgba(99,102,241,0.05); }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .badge-green { background: rgba(34,197,94,0.15); color: var(--accent-green); }
+        .badge-yellow { background: rgba(234,179,8,0.15); color: var(--accent-yellow); }
+        .badge-red { background: rgba(239,68,68,0.15); color: var(--accent-red); }
+        .badge-blue { background: rgba(99,102,241,0.15); color: var(--primary-light); }
+        
+        /* Screenshot frame */
+        .screenshot-frame {
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid rgba(255,255,255,0.1);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            max-height: 100%;
+        }
+        
+        .screenshot-frame img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        /* Navigation */
+        .nav-bar {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            background: rgba(30,41,59,0.95);
+            padding: 10px 20px;
+            border-radius: 50px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+        }
+        
+        .nav-bar button {
+            background: rgba(99,102,241,0.2);
+            border: 1px solid rgba(99,102,241,0.3);
+            color: var(--text);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        
+        .nav-bar button:hover { background: rgba(99,102,241,0.4); }
+        .nav-bar .page-info { color: var(--text-muted); font-size: 0.85rem; min-width: 80px; text-align: center; }
+        
+        /* Feature icons */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            flex: 1;
+        }
+        
+        .feature-item {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: transform 0.2s;
+        }
+        
+        .feature-item:hover { transform: translateY(-3px); }
+        .feature-item .icon { font-size: 2.5rem; margin-bottom: 12px; }
+        .feature-item h4 { font-size: 1rem; margin-bottom: 8px; color: var(--text); }
+        .feature-item p { font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; }
+        
+        /* Server comparison */
+        .server-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            flex: 1;
+        }
+        
+        .server-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 30px;
+            border: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .server-card .server-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .server-card .server-logo { font-size: 2.5rem; }
+        .server-card .server-name { font-size: 1.3rem; font-weight: 700; }
+        .server-card .server-type { font-size: 0.85rem; color: var(--text-muted); }
+        
+        .server-card .spec-list { list-style: none; padding: 0; flex: 1; }
+        .server-card .spec-list li {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            font-size: 0.9rem;
+        }
+        .server-card .spec-list li .label { color: var(--text-muted); }
+        .server-card .spec-list li .value { color: var(--text); font-weight: 500; }
+        
+        .highlight-box {
+            background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(168,85,247,0.1));
+            border: 1px solid rgba(99,102,241,0.2);
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin-top: 15px;
+        }
+        .highlight-box .title { color: var(--primary-light); font-weight: 600; margin-bottom: 5px; }
+        .highlight-box .desc { color: var(--text-muted); font-size: 0.85rem; }
+        
+        /* Screenshots layout */
+        .screenshots-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            flex: 1;
+            align-items: start;
+        }
+        
+        .screenshot-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 15px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .screenshot-card .caption {
+            text-align: center;
+            margin-top: 10px;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        
+        .screenshot-card img {
+            width: 100%;
+            border-radius: 8px;
+            max-height: 350px;
+            object-fit: contain;
+            background: #0a0e1a;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        
+        <!-- Slide 1: Cover -->
+        <div class="slide cover active" id="slide1">
+            <div class="logo">📈</div>
+            <h1>myStock</h1>
+            <p class="tagline">股票追蹤儀表板系統 — 技術簡報</p>
+            <div class="url">🌐 https://ark945-mystock.hf.space</div>
+            <div class="meta">2026年8月 ｜ 全端專案展示</div>
+        </div>
+
+        <!-- Slide 2: Features Overview with screenshots -->
+        <div class="slide" id="slide2">
+            <h2 class="slide-title">1. 網頁功能圖示說明</h2>
+            <p class="slide-subtitle">即時股票追蹤儀表板，支援台股、美股、日股、韓股與期貨市場</p>
+            <div class="feature-grid">
+                <div class="feature-item">
+                    <div class="icon">🔍</div>
+                    <h4>智慧搜尋</h4>
+                    <p>輸入代號或公司名稱即時搜尋<br>支援台股代號/名稱 + 美股英文代號</p>
+                </div>
+                <div class="feature-item">
+                    <div class="icon">📊</div>
+                    <h4>即時報價</h4>
+                    <p>最快每 5 秒自動更新最新股價<br>台股紅漲綠跌 + 閃爍動畫提示</p>
+                </div>
+                <div class="feature-item">
+                    <div class="icon">📋</div>
+                    <h4>追蹤清單管理</h4>
+                    <p>多清單分類（如：存股族群）<br>拖放排序 + 建倉日/建倉價記錄</p>
+                </div>
+                <div class="feature-item">
+                    <div class="icon">🩺</div>
+                    <h4>健康度體檢</h4>
+                    <p>5大指標綜合評分（滿分5分）<br>均線趨勢/估值/財務安全/Beta</p>
+                </div>
+                <div class="feature-item">
+                    <div class="icon">👥</div>
+                    <h4>多使用者</h4>
+                    <p>切換不同使用者帳號<br>每人可擁有獨立追蹤清單</p>
+                </div>
+                <div class="feature-item">
+                    <div class="icon">🌏</div>
+                    <h4>多市場支援</h4>
+                    <p>台股 / 美股 / 日股 / 韓股<br>台指期貨（大台/小台/電子/金融）</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 3: Screenshots - Watchlist -->
+        <div class="slide" id="slide3">
+            <h2 class="slide-title">1-1. 功能截圖：追蹤清單頁面</h2>
+            <div class="screenshots-grid">
+                <div class="screenshot-card">
+                    <img src="screenshot_watchlist_wide.png" alt="追蹤清單主畫面">
+                    <div class="caption">追蹤清單 — 建倉資訊、即時價格、損益計算、52週區間</div>
+                </div>
+                <div class="screenshot-card">
+                    <img src="screenshot_watchlist.png" alt="追蹤清單完整頁面">
+                    <div class="caption">完整頁面 — 深色玻璃擬態主題、多清單分頁切換</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 4: Screenshots - Markets -->
+        <div class="slide" id="slide4">
+            <h2 class="slide-title">1-2. 功能截圖：美股 / 台指期市場</h2>
+            <div class="screenshots-grid">
+                <div class="screenshot-card">
+                    <img src="screenshot_us_market.png" alt="美股市場頁面">
+                    <div class="caption">美股頁面 — 四大指數卡片 + 熱門個股即時報價</div>
+                </div>
+                <div class="screenshot-card">
+                    <img src="screenshot_futures.png" alt="台指期夜盤頁面">
+                    <div class="caption">台指期夜盤 — 大台/小台/電子期/金融期 即時報價</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 5: System Architecture -->
+        <div class="slide" id="slide5">
+            <h2 class="slide-title">2. 系統整體架構圖</h2>
+            <div class="arch-diagram">
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                     Hugging Face Spaces (Docker Container)                           │
+│                                                                                     │
+│   ┌───────────────────────┐           ┌──────────────────────────────────────────┐  │
+│   │      前端 (Static)     │   HTTP    │           FastAPI 後端 (Python)           │  │
+│   │                       │ ─────────▶│                                          │  │
+│   │  • index.html         │           │  • app.py         — 路由 & CRUD API      │  │
+│   │  • style.css          │◀───────── │  • stock_service.py — 報價引擎           │  │
+│   │  • app.js             │   JSON    │  • 背景更新程序 (60s loop)               │  │
+│   │                       │           │                                          │  │
+│   │  功能:                 │           │  API 端點:                               │  │
+│   │  - 自動定時刷新        │           │  GET  /api/search?q=...                  │  │
+│   │  - 漲跌閃爍動畫        │           │  GET  /api/quote?symbols=...             │  │
+│   │  - 拖放排序            │           │  POST /api/watchlist                     │  │
+│   │  - 健康度計算          │           │  PUT  /api/watchlist/{id}                │  │
+│   │  - 多分頁切換          │           │  DELETE /api/watchlist/{id}              │  │
+│   └───────────────────────┘           └─────────────────┬────────────────────────┘  │
+│                                                         │                           │
+└─────────────────────────────────────────────────────────┼───────────────────────────┘
+                                                          │
+                         ┌────────────────────────────────┼────────────────────────────┐
+                         │                                │                            │
+                         ▼                                ▼                            ▼
+            ┌─────────────────────┐         ┌─────────────────────┐      ┌────────────────────┐
+            │  台灣證券交易所 API   │         │    Yahoo Finance     │      │  鉅亨網 CNYES API   │
+            │  (TWSE/TPEx)        │         │    (yfinance)        │      │                    │
+            │                     │         │                      │      │  • 台指期貨報價     │
+            │  • 台股即時報價      │         │  • 美/日/韓股報價     │      │  • 大台/小台       │
+            │  • 上漲下跌家數      │         │  • 技術指標 (MA)     │      │  • 電子期/金融期   │
+            │  • 大盤指數          │         │  • 基本面 (PE/殖利率) │      │                    │
+            └─────────────────────┘         │  • 走勢圖歷史資料     │      └────────────────────┘
+                                            └─────────────────────┘
+                                                          │
+                                                          ▼
+                                            ┌─────────────────────┐
+                                            │   Supabase 雲端      │
+                                            │   (PostgreSQL)       │
+                                            │                      │
+                                            │  • user_profiles     │
+                                            │  • watchlists        │
+                                            │  • watchlist (個股)  │
+                                            │  • 即時價格快取       │
+                                            │  • 基本面資料快取     │
+                                            └─────────────────────┘</div>
+        </div>
+
+        <!-- Slide 6: Data Sources -->
+        <div class="slide" id="slide6">
+            <h2 class="slide-title">3. 資料源與數據抓取頻率明細</h2>
+            <div class="content-full">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>資料源</th>
+                            <th>涵蓋市場</th>
+                            <th>抓取方式</th>
+                            <th>更新頻率</th>
+                            <th>資料內容</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>TWSE MIS API</strong><br><span style="color:var(--text-muted);font-size:0.8rem">mis.twse.com.tw</span></td>
+                            <td><span class="badge badge-green">台股上市/上櫃</span></td>
+                            <td>HTTP GET<br>多個股整併為 1 次請求</td>
+                            <td><span class="badge badge-blue">每 60 秒</span><br>前端顯示 5~60s 刷新</td>
+                            <td>即時成交價、昨收價<br>最佳買價、成交量</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Yahoo Finance</strong><br><span style="color:var(--text-muted);font-size:0.8rem">yfinance Python SDK</span></td>
+                            <td><span class="badge badge-yellow">美股 / 日股 / 韓股</span></td>
+                            <td>yf.Tickers() 批次查詢<br>fast_info 輕量介面</td>
+                            <td><span class="badge badge-blue">每 60 秒</span>（價格）<br><span class="badge badge-green">每 24 小時</span>（基本面）</td>
+                            <td>股價、52週高低、MA50/200<br>PE、殖利率、Beta、ROE</td>
+                        </tr>
+                        <tr>
+                            <td><strong>鉅亨網 CNYES API</strong><br><span style="color:var(--text-muted);font-size:0.8rem">ws.api.cnyes.com</span></td>
+                            <td><span class="badge badge-red">台指期貨</span></td>
+                            <td>HTTP GET<br>每支期貨 1 次請求</td>
+                            <td><span class="badge badge-blue">每 60 秒</span></td>
+                            <td>期指即時價、昨收<br>52週高低、成交量、走勢圖</td>
+                        </tr>
+                        <tr>
+                            <td><strong>twstock 套件</strong><br><span style="color:var(--text-muted);font-size:0.8rem">本地 Python 套件</span></td>
+                            <td><span class="badge badge-green">台股</span></td>
+                            <td>Fallback 備援<br>歷史日線資料</td>
+                            <td>僅在 TWSE API 失敗時</td>
+                            <td>盤後收盤價<br>月線歷史資料</td>
+                        </tr>
+                        <tr>
+                            <td><strong>TWSE 大盤資訊</strong><br><span style="color:var(--text-muted);font-size:0.8rem">www.twse.com.tw</span></td>
+                            <td><span class="badge badge-green">台股大盤</span></td>
+                            <td>HTML Scraping</td>
+                            <td>前端每次刷新時抓取</td>
+                            <td>加權指數、漲跌家數<br>漲停/跌停家數</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <div class="highlight-box" style="margin-top:20px;">
+                    <div class="title">⚡ Rate Limit 優化策略</div>
+                    <div class="desc">
+                        • <strong>台股</strong>：所有追蹤個股合併為「單一 HTTP 請求」（用 | 串接代號），避免被 TWSE 封鎖 IP<br>
+                        • <strong>美股</strong>：使用 <code>yf.Tickers()</code> 批次初始化 + <code>fast_info</code> 輕量查詢，避免觸發 Yahoo 429 錯誤<br>
+                        • <strong>基本面</strong>：僅在初次加入或每 24 小時更新一次（PE/殖利率/Beta 等低頻變動指標）<br>
+                        • <strong>智慧快取</strong>：盤中快取 10 秒有效 / 盤後快取至下次收盤前持續有效
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 7: Free Servers -->
+        <div class="slide" id="slide7">
+            <h2 class="slide-title">4. 免費網頁伺服器與資料庫伺服器介紹</h2>
+            <div class="server-grid">
+                <div class="server-card">
+                    <div class="server-header">
+                        <div class="server-logo">🤗</div>
+                        <div>
+                            <div class="server-name">Hugging Face Spaces</div>
+                            <div class="server-type">免費網頁應用伺服器 (Docker)</div>
+                        </div>
+                    </div>
+                    <ul class="spec-list">
+                        <li><span class="label">方案</span><span class="value">Free Tier（免費）</span></li>
+                        <li><span class="label">CPU</span><span class="value">2 vCPU</span></li>
+                        <li><span class="label">記憶體</span><span class="value">16 GB RAM</span></li>
+                        <li><span class="label">儲存空間</span><span class="value">50 GB（ephemeral）</span></li>
+                        <li><span class="label">部署方式</span><span class="value">Docker Container</span></li>
+                        <li><span class="label">容器基底</span><span class="value">Python 3.11 Slim</span></li>
+                        <li><span class="label">對外 Port</span><span class="value">7860</span></li>
+                        <li><span class="label">HTTPS</span><span class="value">✅ 自動 SSL 憑證</span></li>
+                        <li><span class="label">自訂域名</span><span class="value">*.hf.space 子域名</span></li>
+                        <li><span class="label">冷啟動</span><span class="value">閒置 48 小時後休眠</span></li>
+                        <li><span class="label">環境變數</span><span class="value">支援 Secrets 管理</span></li>
+                        <li><span class="label">Git 整合</span><span class="value">推送即自動部署 (CI/CD)</span></li>
+                    </ul>
+                    <div class="highlight-box">
+                        <div class="title">💡 適用場景</div>
+                        <div class="desc">個人小型 Web 應用、API 服務、Demo 展示<br>透過 Git push 自動觸發重新建置與部署</div>
+                    </div>
+                </div>
+                
+                <div class="server-card">
+                    <div class="server-header">
+                        <div class="server-logo">⚡</div>
+                        <div>
+                            <div class="server-name">Supabase</div>
+                            <div class="server-type">免費雲端 PostgreSQL 資料庫</div>
+                        </div>
+                    </div>
+                    <ul class="spec-list">
+                        <li><span class="label">方案</span><span class="value">Free Tier（免費）</span></li>
+                        <li><span class="label">資料庫</span><span class="value">PostgreSQL 15+</span></li>
+                        <li><span class="label">儲存空間</span><span class="value">500 MB 資料庫</span></li>
+                        <li><span class="label">檔案儲存</span><span class="value">1 GB Storage</span></li>
+                        <li><span class="label">頻寬</span><span class="value">2 GB / 月</span></li>
+                        <li><span class="label">API 請求</span><span class="value">無限制（REST API）</span></li>
+                        <li><span class="label">安全性</span><span class="value">Row Level Security (RLS)</span></li>
+                        <li><span class="label">SDK</span><span class="value">Python / JS / Dart 等</span></li>
+                        <li><span class="label">即時功能</span><span class="value">Realtime subscriptions</span></li>
+                        <li><span class="label">認證</span><span class="value">內建 Auth（含社交登入）</span></li>
+                        <li><span class="label">暫停策略</span><span class="value">7 天無活動後暫停</span></li>
+                        <li><span class="label">專案數量</span><span class="value">最多 2 個免費專案</span></li>
+                    </ul>
+                    <div class="highlight-box">
+                        <div class="title">💡 本專案使用方式</div>
+                        <div class="desc">儲存使用者追蹤清單、建倉資料、股票即時價格快取<br>透過 supabase-py SDK 進行 CRUD 操作</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 8: Tech Stack Summary -->
+        <div class="slide" id="slide8">
+            <h2 class="slide-title">技術棧總結</h2>
+            <div class="content-grid">
+                <div class="card">
+                    <h3>🔧 後端技術</h3>
+                    <ul>
+                        <li>FastAPI — 高效能非同步 Web 框架</li>
+                        <li>Uvicorn — ASGI 伺服器</li>
+                        <li>yfinance — Yahoo Finance 股票資料 SDK</li>
+                        <li>twstock — 台灣股市資料套件</li>
+                        <li>supabase-py — Supabase Python SDK</li>
+                        <li>asyncio — 背景定時更新價格</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h3>🎨 前端技術</h3>
+                    <ul>
+                        <li>原生 HTML5 / CSS3 / JavaScript</li>
+                        <li>深色玻璃擬態 (Glassmorphism) 主題</li>
+                        <li>響應式設計 (Responsive)</li>
+                        <li>拖放排序 (Drag & Drop)</li>
+                        <li>SVG Sparkline 走勢圖</li>
+                        <li>CSS 動畫（漲跌閃爍、背景粒子）</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h3>🗃️ 資料庫設計</h3>
+                    <ul>
+                        <li><strong>user_profiles</strong> — 使用者帳號</li>
+                        <li><strong>watchlists</strong> — 追蹤清單分類</li>
+                        <li><strong>watchlist</strong> — 個股追蹤明細<br>（含建倉價、目標價、即時價、PE、殖利率…）</li>
+                        <li>Row Level Security 安全策略</li>
+                        <li>外鍵級聯刪除 (ON DELETE CASCADE)</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h3>🚀 部署流程</h3>
+                    <ul>
+                        <li>Docker 容器化部署</li>
+                        <li>Hugging Face Spaces 免費託管</li>
+                        <li>Git push → 自動觸發 CI/CD</li>
+                        <li>環境變數透過 HF Secrets 管理</li>
+                        <li>本地開發使用 config.json</li>
+                        <li>總成本：<strong style="color:#22c55e">$0 / 月</strong></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 9: End -->
+        <div class="slide cover" id="slide9">
+            <div class="logo">📈</div>
+            <h1>Thank You</h1>
+            <p class="tagline">myStock — 零成本全端股票追蹤系統</p>
+            <div class="url">🌐 https://ark945-mystock.hf.space</div>
+            <div class="meta" style="margin-top:30px;">
+                <p>FastAPI + Supabase + Hugging Face Spaces</p>
+                <p style="margin-top:8px; color: #22c55e; font-weight:600;">月維護費：$0 ｜ 全免費架構</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Navigation -->
+    <div class="nav-bar">
+        <button onclick="prevSlide()">◀ 上一頁</button>
+        <span class="page-info" id="pageInfo">1 / 9</span>
+        <button onclick="nextSlide()">下一頁 ▶</button>
+    </div>
+
+    <script>
+        let current = 1;
+        const total = 9;
+        
+        function showSlide(n) {
+            document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+            document.getElementById('slide' + n).classList.add('active');
+            document.getElementById('pageInfo').textContent = n + ' / ' + total;
+        }
+        
+        function nextSlide() { if (current < total) { current++; showSlide(current); } }
+        function prevSlide() { if (current > 1) { current--; showSlide(current); } }
+        
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); nextSlide(); }
+            if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prevSlide(); }
+            if (e.key === 'Home') { current = 1; showSlide(1); }
+            if (e.key === 'End') { current = total; showSlide(total); }
+        });
+    </script>
+</body>
+</html>
