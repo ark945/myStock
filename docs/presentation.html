@@ -346,14 +346,58 @@
             </div>
         </div>
 
-        <!-- Slide 3: Screenshot - Watchlist -->
-        <div class="slide" id="slide3">
-            <h2 class="slide-title">1-1. 功能截圖：追蹤清單頁面</h2>
-            <div class="content-full" style="align-items:center; justify-content:center;">
-                <div class="screenshot-frame" style="max-width:700px;">
-                    <img src="screenshot_watchlist_wide.png" alt="追蹤清單主畫面">
+        <!-- Slide 3: Screenshot - Watchlist with indicator explanations -->
+        <div class="slide" id="slide3" style="padding: 40px 60px;">
+            <h2 class="slide-title" style="margin-bottom:15px;">1-1. 功能截圖：追蹤清單頁面與指標說明</h2>
+            <div style="display:flex; gap:25px; flex:1; min-height:0;">
+                <!-- Left: Screenshot -->
+                <div style="flex:1.2; display:flex; flex-direction:column; min-width:0;">
+                    <div class="screenshot-frame" style="flex:1; overflow:hidden;">
+                        <img src="screenshot_main_wide.png" alt="追蹤清單主畫面" style="width:100%; height:100%; object-fit:cover; object-position:top left;">
+                    </div>
                 </div>
-                <p style="color:var(--text-muted); text-align:center; margin-top:15px;">追蹤清單 — 建倉資訊、即時價格、損益計算、健康度評分、52週區間圖示</p>
+                <!-- Right: Indicator legend -->
+                <div style="flex:0.8; display:flex; flex-direction:column; gap:8px; font-size:0.82rem; overflow-y:auto;">
+                    <div class="card" style="padding:12px 15px;">
+                        <h3 style="font-size:1rem; margin-bottom:8px;">📋 表格欄位說明</h3>
+                        <ul style="font-size:0.8rem;">
+                            <li><strong style="color:#60a5fa">股票資訊</strong> — 代號、名稱、市場標籤(TW/US)、健康度評分</li>
+                            <li><strong style="color:#60a5fa">建倉與目標</strong> — 建倉價、建倉日、目標價、距目標百分比</li>
+                            <li><strong style="color:#60a5fa">最新股價</strong> — 即時價格、今日漲跌額/幅、52週區間圖示</li>
+                            <li><strong style="color:#60a5fa">累計損益</strong> — 與建倉價比較之漲跌幅(%)、每張損益金額</li>
+                            <li><strong style="color:#60a5fa">估值 (PE/殖利率)</strong> — 本益比(PE)、現金股息殖利率</li>
+                            <li><strong style="color:#60a5fa">市場 (市值/成交量)</strong> — 總市值(兆/億)、當日成交量(張)</li>
+                            <li><strong style="color:#60a5fa">體質 (ROE/營收YoY)</strong> — 股東權益報酬率、年營收成長率</li>
+                            <li><strong style="color:#60a5fa">走勢 (30天)</strong> — 近30日收盤價 Sparkline 迷你折線圖</li>
+                            <li><strong style="color:#60a5fa">操作</strong> — 排序▲▼、複製、編輯✏️、刪除🗑️</li>
+                        </ul>
+                    </div>
+                    <div class="card" style="padding:12px 15px;">
+                        <h3 style="font-size:1rem; margin-bottom:8px;">🩺 健康度評分 (滿分 5 分)</h3>
+                        <ul style="font-size:0.8rem;">
+                            <li><span class="badge badge-green">健康 4~5</span> 體質強健、趨勢佳</li>
+                            <li><span class="badge badge-yellow">調整 3</span> 中規中矩、整理期</li>
+                            <li><span class="badge badge-red">警示 0~2</span> 趨勢偏空、風險高</li>
+                        </ul>
+                        <div style="margin-top:8px; font-size:0.78rem; color:var(--text-muted); line-height:1.5;">
+                            <strong>5 項評分依據：</strong><br>
+                            ① 均線趨勢：價格 &gt; 50MA &gt; 200MA<br>
+                            ② 52週位置：區間百分比 &lt; 85%<br>
+                            ③ 合理估值：PE &lt; 25 或 殖利率 &gt; 3%<br>
+                            ④ 財務安全：流動比率 &gt; 120%<br>
+                            ⑤ 市場風險：Beta &lt; 1.3
+                        </div>
+                    </div>
+                    <div class="card" style="padding:12px 15px;">
+                        <h3 style="font-size:1rem; margin-bottom:8px;">🎨 顏色與符號</h3>
+                        <ul style="font-size:0.8rem;">
+                            <li><span style="color:#ef4444">■ 紅色</span> 上漲 / <span style="color:#22c55e">■ 綠色</span> 下跌（台股慣例）</li>
+                            <li>↗ 高於建倉價 / ↘ 低於建倉價</li>
+                            <li>🔄 價格變動時閃爍動畫提示</li>
+                            <li>━●━ 52週區間位置指示條</li>
+                        </ul>
+                    </div>
+                </div>
             </div>
         </div>
 
