@@ -163,33 +163,36 @@
         /* Navigation */
         .nav-bar {
             position: fixed;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
+            top: 15px;
+            right: 20px;
             display: flex;
-            gap: 10px;
+            gap: 8px;
             align-items: center;
-            background: rgba(30,41,59,0.95);
-            padding: 10px 20px;
-            border-radius: 50px;
+            background: rgba(30,41,59,0.85);
+            padding: 6px 14px;
+            border-radius: 8px;
             border: 1px solid rgba(255,255,255,0.1);
             backdrop-filter: blur(10px);
             z-index: 1000;
+            opacity: 0.6;
+            transition: opacity 0.2s;
         }
+        
+        .nav-bar:hover { opacity: 1; }
         
         .nav-bar button {
             background: rgba(99,102,241,0.2);
             border: 1px solid rgba(99,102,241,0.3);
             color: var(--text);
-            padding: 8px 16px;
-            border-radius: 6px;
+            padding: 5px 10px;
+            border-radius: 5px;
             cursor: pointer;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             transition: all 0.2s;
         }
         
         .nav-bar button:hover { background: rgba(99,102,241,0.4); }
-        .nav-bar .page-info { color: var(--text-muted); font-size: 0.85rem; min-width: 80px; text-align: center; }
+        .nav-bar .page-info { color: var(--text-muted); font-size: 0.8rem; min-width: 50px; text-align: center; }
         
         /* Feature icons */
         .feature-grid {
