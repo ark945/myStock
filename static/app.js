@@ -2763,9 +2763,9 @@ async function loadChipExitData() {
                 <div class="chip-card glassmorphism exit-border">
                     <div class="chip-card-header">
                         <div>
-                            <span class="chip-symbol">${item.symbol}</span>
-                            <span class="chip-stock-name">${item.stock_name}</span>
-                            <span class="chip-market-badge">${item.market || "上市"}</span>
+                            <span class="chip-symbol" style="font-size: 18px; color: #60a5fa; font-weight: 900;">${item.symbol}</span>
+                            <span class="chip-stock-name" style="font-size: 17px; color: #f8fafc; font-weight: 800; margin-left: 6px;">${item.stock_name}</span>
+                            <span class="chip-market-badge" style="margin-left: 6px;">${item.market || "上市"}</span>
                         </div>
                         <div class="chip-warning-badge">${item.warning_level || "🚨 出貨預警"}</div>
                     </div>
