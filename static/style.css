@@ -2352,3 +2352,505 @@ tr.dragging {
 }
 
 
+
+
+
+/* =========================================================
+   🏛️ 主力籌碼戰情室 (Chip War Room) 專屬玻璃擬態暗黑風格
+   ========================================================= */
+
+.chip-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 18px 24px;
+    margin-bottom: 20px;
+    background: rgba(30, 41, 59, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+.chip-title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    background: linear-gradient(135deg, #60a5fa 0%, #c084fc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.chip-subtitle {
+    display: block;
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 4px;
+}
+
+.chip-topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.chip-date-label {
+    font-size: 13px;
+    color: #cbd5e1;
+    font-weight: 600;
+}
+
+.chip-date-select {
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #f8fafc;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(96, 165, 250, 0.4);
+    border-radius: 8px;
+    outline: none;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.chip-date-select:hover, .chip-date-select:focus {
+    border-color: #60a5fa;
+    box-shadow: 0 0 12px rgba(96, 165, 250, 0.3);
+}
+
+.btn-chip-refresh {
+    padding: 8px 14px;
+    background: rgba(59, 130, 246, 0.2);
+    color: #93c5fd;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-chip-refresh:hover {
+    background: rgba(59, 130, 246, 0.4);
+    color: #ffffff;
+}
+
+/* 子分頁導覽列 */
+.chip-subnav {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    margin-bottom: 22px;
+}
+
+.chip-subtab-btn {
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #94a3b8;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+}
+
+.chip-subtab-btn:hover {
+    color: #f1f5f9;
+    background: rgba(51, 65, 85, 0.8);
+}
+
+.chip-subtab-btn.active {
+    color: #ffffff;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    border-color: #3b82f6;
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.35);
+}
+
+.chip-subtab-btn.danger.active {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    border-color: #ef4444;
+    box-shadow: 0 4px 16px rgba(220, 38, 38, 0.35);
+}
+
+.chip-subcontent {
+    display: none;
+}
+
+.chip-subcontent.active {
+    display: block;
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* 多空對決卡片 */
+.chip-macro-duel {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 26px;
+}
+
+@media (max-width: 768px) {
+    .chip-macro-duel {
+        grid-template-columns: 1fr;
+    }
+}
+
+.duel-card {
+    padding: 20px 24px;
+    border-radius: 14px;
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+}
+
+.duel-card.bull {
+    border-left: 5px solid #22c55e;
+}
+
+.duel-card.bear {
+    border-left: 5px solid #ef4444;
+}
+
+.duel-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    margin-bottom: 8px;
+}
+
+.duel-badge.bull {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.duel-badge.bear {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.duel-broker {
+    font-size: 18px;
+    font-weight: 800;
+    color: #f8fafc;
+    margin-bottom: 4px;
+}
+
+.duel-amt {
+    font-size: 24px;
+    font-weight: 900;
+    margin-bottom: 8px;
+}
+
+.duel-card.bull .duel-amt { color: #f43f5e; }
+.duel-card.bear .duel-amt { color: #22c55e; }
+
+.duel-stocks {
+    font-size: 12px;
+    color: #cbd5e1;
+    line-height: 1.6;
+}
+
+.duel-center {
+    text-align: center;
+    padding: 10px 16px;
+}
+
+.duel-vs {
+    font-size: 20px;
+    font-weight: 900;
+    color: #64748b;
+    letter-spacing: 1px;
+}
+
+.duel-sentiment {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fbbf24;
+    margin-top: 4px;
+}
+
+.duel-date {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 2px;
+}
+
+/* 週期選單與過濾 */
+.chip-period-filter, .chip-inst-filter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+}
+
+.chip-filter-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #94a3b8;
+}
+
+.chip-period-pill, .chip-inst-pill {
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #94a3b8;
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.chip-period-pill:hover, .chip-inst-pill:hover {
+    color: #f1f5f9;
+    border-color: #60a5fa;
+}
+
+.chip-period-pill.active, .chip-inst-pill.active {
+    color: #ffffff;
+    background: #2563eb;
+    border-color: #3b82f6;
+}
+
+.chip-search-box {
+    margin-left: auto;
+}
+
+.chip-input-search {
+    padding: 6px 14px;
+    font-size: 12px;
+    color: #f8fafc;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    outline: none;
+    width: 200px;
+    transition: all 0.2s;
+}
+
+.chip-input-search:focus {
+    width: 250px;
+    border-color: #60a5fa;
+}
+
+/* 卡片網格 (Responsive Cards Grid) */
+.chip-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 18px;
+}
+
+.chip-card {
+    padding: 18px 20px;
+    border-radius: 14px;
+    background: rgba(30, 41, 59, 0.65);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+
+.chip-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(96, 165, 250, 0.35);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+}
+
+.chip-card.exit-border {
+    border-left: 4px solid #ef4444;
+}
+
+.chip-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.chip-symbol {
+    font-size: 16px;
+    font-weight: 900;
+    color: #60a5fa;
+    margin-right: 6px;
+}
+
+.chip-stock-name {
+    font-size: 15px;
+    font-weight: 800;
+    color: #f8fafc;
+    margin-right: 6px;
+}
+
+.chip-market-badge {
+    display: inline-block;
+    padding: 1px 5px;
+    font-size: 10px;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+}
+
+.chip-persona-badge {
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    border-radius: 6px;
+}
+
+.chip-warning-badge {
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 6px;
+}
+
+.chip-tag-badge {
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 6px;
+}
+
+.chip-tag-badge.tag-foreign {
+    color: #60a5fa;
+    background: rgba(96, 165, 250, 0.15);
+    border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+.chip-tag-badge.tag-domestic {
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.15);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.chip-tag-badge.tag-daytrade {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.chip-metric-row.main {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 12px;
+}
+
+.metric-label {
+    display: block;
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 2px;
+}
+
+.metric-value-broker {
+    font-size: 15px;
+    font-weight: 800;
+    color: #f1f5f9;
+}
+
+.metric-value-broker.text-danger { color: #f87171; }
+.metric-value-broker.text-foreign { color: #60a5fa; }
+.metric-value-broker.text-domestic { color: #fbbf24; }
+
+.metric-value-amt {
+    font-size: 20px;
+    font-weight: 900;
+    color: #f43f5e;
+}
+
+.metric-value-amt.text-danger { color: #22c55e; }
+
+.chip-metric-row.sub {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(65px, 1fr));
+    gap: 8px;
+    padding: 10px;
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.mini-label {
+    display: block;
+    font-size: 10px;
+    color: #64748b;
+}
+
+.mini-val {
+    font-size: 12px;
+    font-weight: 700;
+    color: #e2e8f0;
+}
+
+.mini-val.gain { color: #f43f5e; }
+.mini-val.loss { color: #22c55e; }
+.mini-val.highlight { color: #fbbf24; }
+
+.chip-action-guide {
+    padding: 8px 12px;
+    font-size: 11px;
+    color: #93c5fd;
+    background: rgba(59, 130, 246, 0.1);
+    border-left: 3px solid #3b82f6;
+    border-radius: 6px;
+    line-height: 1.5;
+}
+
+.chip-action-guide.danger-bg {
+    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.1);
+    border-left-color: #ef4444;
+}
+
+.chip-exit-warning-banner, .chip-vwap-banner {
+    padding: 12px 18px;
+    font-size: 13px;
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: 10px;
+    margin-bottom: 18px;
+    line-height: 1.6;
+}
+
+.chip-vwap-banner {
+    color: #93c5fd;
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.25);
+}
+
+.chip-loading, .chip-empty, .chip-error {
+    grid-column: 1 / -1;
+    padding: 30px;
+    text-align: center;
+    font-size: 14px;
+    color: #94a3b8;
+    background: rgba(30, 41, 59, 0.4);
+    border-radius: 12px;
+}
+
+.chip-error { color: #f87171; }

@@ -2120,14 +2120,18 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
         document.querySelectorAll(".tab-content").forEach(content => content.classList.remove("active"));
         document.getElementById(`${tabName}-tab`).classList.add("active");
         
+
         // Fetch data immediately for the active tab
         if (activeTab === "watchlist") {
             if (watchlist.length > 0) {
                 fetchQuotes();
             }
+        } else if (activeTab === "chip-warroom") {
+            initChipWarRoom();
         } else {
             fetchMarketOverview();
         }
+
         
         // Restart refresh timer
         startRefreshTimer();
@@ -2481,3 +2485,454 @@ function renderFuturesTable(tbodyId, futuresData) {
     });
 }
 
+
+
+
+// ==========================================
+// 🏛️ 主力籌碼戰情室 (Chip Intelligence War Room) 前端邏輯
+// ==========================================
+
+let chipCurrentDate = "";
+let chipCurrentSubtab = "summary";
+let chipCurrentPeriod = 20;
+let chipAccumDataCache = [];
+
+// 1. 初始化戰情室
+async function initChipWarRoom() {
+    await loadChipDates();
+    setupChipEvents();
+    loadChipSubtabData();
+}
+
+// 2. 載入歷史交易日下拉選單
+async function loadChipDates() {
+    const select = document.getElementById("chipDateSelect");
+    if (!select) return;
+
+    try {
+        const resp = await fetch("/api/chip/dates");
+        const res = await resp.json();
+        if (res.success && res.dates && res.dates.length > 0) {
+            select.innerHTML = res.dates.map((d, idx) => {
+                const label = idx === 0 ? `${d} (最新)` : d;
+                return `<option value="${d}">${label}</option>`;
+            }).join("");
+            chipCurrentDate = res.dates[0];
+        } else {
+            select.innerHTML = `<option value="">尚無籌碼資料</option>`;
+        }
+    } catch (e) {
+        console.error("Error loading chip dates:", e);
+        select.innerHTML = `<option value="">載入失敗</option>`;
+    }
+}
+
+// 3. 設定戰情室事件監聽
+function setupChipEvents() {
+    // 日期選單切換
+    const dateSelect = document.getElementById("chipDateSelect");
+    if (dateSelect) {
+        dateSelect.addEventListener("change", (e) => {
+            chipCurrentDate = e.target.value;
+            loadChipSubtabData();
+        });
+    }
+
+    // 重新整理按鈕
+    const refreshBtn = document.getElementById("chipRefreshBtn");
+    if (refreshBtn) {
+        refreshBtn.addEventListener("click", () => {
+            loadChipSubtabData();
+        });
+    }
+
+    // 子分頁切換
+    document.querySelectorAll(".chip-subtab-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll(".chip-subtab-btn").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            chipCurrentSubtab = btn.getAttribute("data-subtab");
+
+            document.querySelectorAll(".chip-subcontent").forEach(c => c.classList.remove("active"));
+            const target = document.getElementById(`chip-subtab-${chipCurrentSubtab}`);
+            if (target) target.classList.add("active");
+
+            loadChipSubtabData();
+        });
+    });
+
+    // 吸籌週期切換
+    document.querySelectorAll(".chip-period-pill").forEach(pill => {
+        pill.addEventListener("click", () => {
+            document.querySelectorAll(".chip-period-pill").forEach(p => p.classList.remove("active"));
+            pill.classList.add("active");
+            chipCurrentPeriod = parseInt(pill.getAttribute("data-period"));
+            loadChipAccumulationData();
+        });
+    });
+
+    // 吸籌搜尋框即時過濾
+    const searchInput = document.getElementById("chipAccumSearch");
+    if (searchInput) {
+        searchInput.addEventListener("input", (e) => {
+            const query = e.target.value.trim().toLowerCase();
+            renderAccumCards(chipAccumDataCache.filter(item => 
+                (item.symbol && item.symbol.toLowerCase().includes(query)) ||
+                (item.stock_name && item.stock_name.toLowerCase().includes(query)) ||
+                (item.broker_name && item.broker_name.toLowerCase().includes(query))
+            ));
+        });
+    }
+
+    // 法人席位類別切換
+    document.querySelectorAll(".chip-inst-pill").forEach(pill => {
+        pill.addEventListener("click", () => {
+            document.querySelectorAll(".chip-inst-pill").forEach(p => p.classList.remove("active"));
+            pill.classList.add("active");
+            const cat = pill.getAttribute("data-cat");
+            loadChipInstitutionsData(cat);
+        });
+    });
+}
+
+// 4. 依當前子分頁載入對應數據
+function loadChipSubtabData() {
+    if (!chipCurrentDate) return;
+    if (chipCurrentSubtab === "summary") {
+        loadChipSummaryData();
+    } else if (chipCurrentSubtab === "accumulation") {
+        loadChipAccumulationData();
+    } else if (chipCurrentSubtab === "exit") {
+        loadChipExitData();
+    } else if (chipCurrentSubtab === "institutions") {
+        loadChipInstitutionsData("ALL");
+    } else if (chipCurrentSubtab === "vwap") {
+        loadChipVwapData();
+    }
+}
+
+// 4.1 載入戰情速覽
+async function loadChipSummaryData() {
+    const duelEl = document.getElementById("chipMacroDuel");
+    const gridEl = document.getElementById("chipHighlightsGrid");
+    if (!duelEl || !gridEl) return;
+
+    duelEl.innerHTML = `<div class="chip-loading">⏳ 正在載入多空司令對決...</div>`;
+    gridEl.innerHTML = `<div class="chip-loading">⏳ 正在載入核心主力焦點...</div>`;
+
+    try {
+        const resp = await fetch(`/api/chip/summary?date=${chipCurrentDate}`);
+        const res = await resp.json();
+        if (res.success && res.data) {
+            const d = res.data;
+            duelEl.innerHTML = `
+                <div class="duel-card bull">
+                    <div class="duel-badge bull">🐂 多頭司令 (買超之王)</div>
+                    <div class="duel-broker">${d.bull_champion_broker || "暫無"}</div>
+                    <div class="duel-amt">+${Number(d.bull_champion_amt || 0).toFixed(2)} 億元</div>
+                    <div class="duel-stocks"><strong>重押核心標的：</strong><br>${d.bull_champion_stocks || "分散多檔"}</div>
+                </div>
+                <div class="duel-center">
+                    <div class="duel-vs">VS</div>
+                    <div class="duel-sentiment">${d.market_sentiment || "中性整理"}</div>
+                    <div class="duel-date">${d.trade_date}</div>
+                </div>
+                <div class="duel-card bear">
+                    <div class="duel-badge bear">🐻 空頭調節 (賣超大戶)</div>
+                    <div class="duel-broker">${d.bear_champion_broker || "暫無"}</div>
+                    <div class="duel-amt">${Number(d.bear_champion_amt || 0).toFixed(2)} 億元</div>
+                    <div class="duel-stocks"><strong>調節出貨標的：</strong><br>${d.bear_champion_stocks || "分散多檔"}</div>
+                </div>
+            `;
+        } else {
+            duelEl.innerHTML = `<div class="chip-empty">此交易日暫無多空司令資料</div>`;
+        }
+
+        // 載入焦點精選 (取 20 日吸籌 Top 3)
+        const accumResp = await fetch(`/api/chip/accumulation?date=${chipCurrentDate}&period=20`);
+        const accumRes = await accumResp.json();
+        if (accumRes.success && accumRes.data && accumRes.data.length > 0) {
+            gridEl.innerHTML = accumRes.data.slice(0, 4).map(item => createAccumCardHtml(item)).join("");
+        } else {
+            gridEl.innerHTML = `<div class="chip-empty">暫無焦點訊號</div>`;
+        }
+    } catch (e) {
+        console.error("Error loading chip summary:", e);
+        duelEl.innerHTML = `<div class="chip-error">載入失敗: ${e.message}</div>`;
+    }
+}
+
+// 4.2 載入四週期吸籌總表
+async function loadChipAccumulationData() {
+    const gridEl = document.getElementById("chipAccumGrid");
+    if (!gridEl) return;
+    gridEl.innerHTML = `<div class="chip-loading">⏳ 正在載入 ${chipCurrentPeriod} 日波段吸籌數據...</div>`;
+
+    try {
+        const resp = await fetch(`/api/chip/accumulation?date=${chipCurrentDate}&period=${chipCurrentPeriod}`);
+        const res = await resp.json();
+        if (res.success && res.data && res.data.length > 0) {
+            chipAccumDataCache = res.data;
+            renderAccumCards(chipAccumDataCache);
+        } else {
+            chipAccumDataCache = [];
+            gridEl.innerHTML = `<div class="chip-empty">${chipCurrentPeriod} 日吸籌週期查無符合門檻標的</div>`;
+        }
+    } catch (e) {
+        console.error("Error loading accumulation:", e);
+        gridEl.innerHTML = `<div class="chip-error">載入失敗: ${e.message}</div>`;
+    }
+}
+
+function renderAccumCards(list) {
+    const gridEl = document.getElementById("chipAccumGrid");
+    if (!gridEl) return;
+    if (list.length === 0) {
+        gridEl.innerHTML = `<div class="chip-empty">無符合搜尋條件之標的</div>`;
+        return;
+    }
+    gridEl.innerHTML = list.map(item => createAccumCardHtml(item)).join("");
+}
+
+function createAccumCardHtml(item) {
+    const costDev = Number(item.cost_deviation_pct || 0);
+    const devClass = costDev >= 0 ? "gain" : "loss";
+    const devSign = costDev >= 0 ? "+" : "";
+
+    return `
+        <div class="chip-card glassmorphism">
+            <div class="chip-card-header">
+                <div>
+                    <span class="chip-symbol">${item.symbol}</span>
+                    <span class="chip-stock-name">${item.stock_name}</span>
+                    <span class="chip-market-badge">${item.market || "上市"}</span>
+                </div>
+                <div class="chip-persona-badge">${item.persona_tag || "波段主力"}</div>
+            </div>
+
+            <div class="chip-card-body">
+                <div class="chip-metric-row main">
+                    <div class="metric-block">
+                        <span class="metric-label">主力重押分點</span>
+                        <span class="metric-value-broker">${item.broker_name}</span>
+                    </div>
+                    <div class="metric-block right">
+                        <span class="metric-label">${item.period_days || chipCurrentPeriod}日淨買超</span>
+                        <span class="metric-value-amt">+${Number(item.net_amt_yi || 0).toFixed(2)} 億</span>
+                    </div>
+                </div>
+
+                <div class="chip-metric-row sub">
+                    <div class="metric-mini">
+                        <span class="mini-label">主力加權成本</span>
+                        <span class="mini-val">${Number(item.buy_avg_price || 0).toFixed(1)} 元</span>
+                    </div>
+                    <div class="metric-mini">
+                        <span class="mini-label">現價成本偏離</span>
+                        <span class="mini-val ${devClass}">${devSign}${costDev.toFixed(1)}%</span>
+                    </div>
+                    <div class="metric-mini">
+                        <span class="mini-label">買進純度</span>
+                        <span class="mini-val">${Number(item.buy_purity_pct || 0).toFixed(0)}%</span>
+                    </div>
+                    <div class="metric-mini">
+                        <span class="mini-label">歷史勝率</span>
+                        <span class="mini-val highlight">${item.backtest_win_rate ? item.backtest_win_rate + '%' : '-'}</span>
+                    </div>
+                </div>
+
+                <div class="chip-action-guide">
+                    💡 <strong>次日指引</strong>：${item.action_guide || "主力強勢建倉，以主力成本線為支撐順勢操作。"}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// 4.3 載入出貨避坑名單
+async function loadChipExitData() {
+    const gridEl = document.getElementById("chipExitGrid");
+    if (!gridEl) return;
+    gridEl.innerHTML = `<div class="chip-loading">⏳ 正在載入主力出貨下車數據...</div>`;
+
+    try {
+        const resp = await fetch(`/api/chip/exit?date=${chipCurrentDate}`);
+        const res = await resp.json();
+        if (res.success && res.data && res.data.length > 0) {
+            gridEl.innerHTML = res.data.map(item => `
+                <div class="chip-card glassmorphism exit-border">
+                    <div class="chip-card-header">
+                        <div>
+                            <span class="chip-symbol">${item.symbol}</span>
+                            <span class="chip-stock-name">${item.stock_name}</span>
+                            <span class="chip-market-badge">${item.market || "上市"}</span>
+                        </div>
+                        <div class="chip-warning-badge">${item.warning_level || "🚨 出貨預警"}</div>
+                    </div>
+                    <div class="chip-card-body">
+                        <div class="chip-metric-row main">
+                            <div class="metric-block">
+                                <span class="metric-label">出貨逃離大戶</span>
+                                <span class="metric-value-broker text-danger">${item.dump_broker_name}</span>
+                            </div>
+                            <div class="metric-block right">
+                                <span class="metric-label">近期出貨規模</span>
+                                <span class="metric-value-amt text-danger">-${Number(item.dump_amt_yi || 0).toFixed(2)} 億</span>
+                            </div>
+                        </div>
+                        <div class="chip-metric-row sub">
+                            <div class="metric-mini">
+                                <span class="mini-label">大戶賣出均價</span>
+                                <span class="mini-val">${Number(item.sell_avg_price || 0).toFixed(1)} 元</span>
+                            </div>
+                            <div class="metric-mini">
+                                <span class="mini-label">出貨總張數</span>
+                                <span class="mini-val">${Number(item.dump_vol_sheets || 0).toFixed(0)} 張</span>
+                            </div>
+                            <div class="metric-mini">
+                                <span class="mini-label">接盤籌碼分布</span>
+                                <span class="mini-val text-warning">${item.retail_broker_name || "散戶多點"}</span>
+                            </div>
+                        </div>
+                        <div class="chip-action-guide danger-bg">
+                            🚨 <strong>避險提醒</strong>：${item.action_guide || "大戶翻臉賣超，出貨嚴重度高，切勿盲目接刀。"}
+                        </div>
+                    </div>
+                </div>
+            `).join("");
+        } else {
+            gridEl.innerHTML = `<div class="chip-empty">今日無異常主力大額出貨下車標的</div>`;
+        }
+    } catch (e) {
+        console.error("Error loading exit signals:", e);
+        gridEl.innerHTML = `<div class="chip-error">載入失敗: ${e.message}</div>`;
+    }
+}
+
+// 4.4 載入外資與本土法人
+async function loadChipInstitutionsData(category) {
+    const gridEl = document.getElementById("chipInstGrid");
+    if (!gridEl) return;
+    gridEl.innerHTML = `<div class="chip-loading">⏳ 正在載入外資與本土法人席位重押數據...</div>`;
+
+    try {
+        const url = `/api/chip/institutions?date=${chipCurrentDate}${category ? '&category=' + category : ''}`;
+        const resp = await fetch(url);
+        const res = await resp.json();
+        if (res.success && res.data && res.data.length > 0) {
+            gridEl.innerHTML = res.data.map(item => {
+                const isForeign = item.category === "FOREIGN";
+                const isDayTrade = (item.feature_tag && item.feature_tag.includes("短線"));
+                const badgeClass = isDayTrade ? "tag-daytrade" : (isForeign ? "tag-foreign" : "tag-domestic");
+
+                return `
+                    <div class="chip-card glassmorphism">
+                        <div class="chip-card-header">
+                            <div>
+                                <span class="chip-symbol">${item.symbol}</span>
+                                <span class="chip-stock-name">${item.stock_name}</span>
+                                <span class="chip-market-badge">${item.market || "上市"}</span>
+                            </div>
+                            <div class="chip-tag-badge ${badgeClass}">${item.feature_tag || (isForeign ? "外資席位" : "本土法人")}</div>
+                        </div>
+                        <div class="chip-card-body">
+                            <div class="chip-metric-row main">
+                                <div class="metric-block">
+                                    <span class="metric-label">券商專屬席位</span>
+                                    <span class="metric-value-broker ${isForeign ? 'text-foreign' : 'text-domestic'}">${item.broker_name}</span>
+                                </div>
+                                <div class="metric-block right">
+                                    <span class="metric-label">單日淨買超</span>
+                                    <span class="metric-value-amt">+${Number(item.net_amt_yi || 0).toFixed(2)} 億</span>
+                                </div>
+                            </div>
+                            <div class="chip-metric-row sub">
+                                <div class="metric-mini">
+                                    <span class="mini-label">買進均價</span>
+                                    <span class="mini-val">${Number(item.buy_avg_price || 0).toFixed(1)} 元</span>
+                                </div>
+                                <div class="metric-mini">
+                                    <span class="mini-label">買進純度</span>
+                                    <span class="mini-val highlight">${Number(item.buy_purity_pct || 0).toFixed(0)}%</span>
+                                </div>
+                                <div class="metric-mini">
+                                    <span class="mini-label">買超張數</span>
+                                    <span class="mini-val">${Number(item.net_sheets || 0).toFixed(0)} 張</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        } else {
+            gridEl.innerHTML = `<div class="chip-empty">此交易日無符合條件之法人席位重押標的</div>`;
+        }
+    } catch (e) {
+        console.error("Error loading institutions:", e);
+        gridEl.innerHTML = `<div class="chip-error">載入失敗: ${e.message}</div>`;
+    }
+}
+
+// 4.5 載入尾盤 VWAP 歸因
+async function loadChipVwapData() {
+    const gridEl = document.getElementById("chipVwapGrid");
+    if (!gridEl) return;
+    gridEl.innerHTML = `<div class="chip-loading">⏳ 正在載入尾盤放量站上 VWAP 數據...</div>`;
+
+    try {
+        const resp = await fetch(`/api/chip/vwap?date=${chipCurrentDate}`);
+        const res = await resp.json();
+        if (res.success && res.data && res.data.length > 0) {
+            gridEl.innerHTML = res.data.map(item => `
+                <div class="chip-card glassmorphism">
+                    <div class="chip-card-header">
+                        <div>
+                            <span class="chip-symbol">${item.symbol}</span>
+                            <span class="chip-stock-name">${item.stock_name}</span>
+                            <span class="chip-market-badge">${item.market || "上市"}</span>
+                        </div>
+                        <div class="chip-persona-badge">${item.persona_tag || "尾盤推手"}</div>
+                    </div>
+                    <div class="chip-card-body">
+                        <div class="chip-metric-row main">
+                            <div class="metric-block">
+                                <span class="metric-label">尾盤突襲推手</span>
+                                <span class="metric-value-broker">${item.broker_name}</span>
+                            </div>
+                            <div class="metric-block right">
+                                <span class="metric-label">分點淨買超</span>
+                                <span class="metric-value-amt">+${Number(item.net_amt_yi || 0).toFixed(2)} 億</span>
+                            </div>
+                        </div>
+                        <div class="chip-metric-row sub">
+                            <div class="metric-mini">
+                                <span class="mini-label">收盤價 / VWAP</span>
+                                <span class="mini-val">${Number(item.close_price || 0).toFixed(1)} / ${Number(item.vwap_price || 0).toFixed(1)}</span>
+                            </div>
+                            <div class="metric-mini">
+                                <span class="mini-label">均價溢價%</span>
+                                <span class="mini-val gain">+${Number(item.vwap_premium_pct || 0).toFixed(1)}%</span>
+                            </div>
+                            <div class="metric-mini">
+                                <span class="mini-label">推手均價</span>
+                                <span class="mini-val">${Number(item.broker_buy_avg || 0).toFixed(1)} 元</span>
+                            </div>
+                            <div class="metric-mini">
+                                <span class="mini-label">買進純度</span>
+                                <span class="mini-val">${Number(item.buy_purity_pct || 0).toFixed(0)}%</span>
+                            </div>
+                        </div>
+                        <div class="chip-action-guide">
+                            💡 <strong>實戰策略</strong>：${item.action_guide || "尾盤急拉站上均價線，留意次日早盤開高震盪與主力慣性。"}
+                        </div>
+                    </div>
+                </div>
+            `).join("");
+        } else {
+            gridEl.innerHTML = `<div class="chip-empty">今日無尾盤放量站上 VWAP 之強勢標的</div>`;
+        }
+    } catch (e) {
+        console.error("Error loading vwap:", e);
+        gridEl.innerHTML = `<div class="chip-error">載入失敗: ${e.message}</div>`;
+    }
+}
