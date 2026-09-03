@@ -1,3 +1,6 @@
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 """
 app.py — FastAPI 主應用
 提供股票搜尋、即時報價、追蹤清單 CRUD API，以及靜態前端頁面。
@@ -1593,6 +1596,173 @@ def api_market_stats():
 # ==========================================
 # Static Files & Index
 # ==========================================
+
+# ==========================================
+# 🏛️ 主力籌碼戰情室 (Chip Intelligence War Room) APIs
+# ==========================================
+
+@app.get("/api/chip/dates")
+async def get_chip_dates():
+    """取得籌碼戰情室所有可用的歷史交易日清單 (降序)"""
+    try:
+        res = await asyncio.to_thread(
+            lambda: supabase.table("daily_chip_summary")
+            .select("trade_date")
+            .order("trade_date", desc=True)
+            .execute()
+        )
+        dates = [row["trade_date"] for row in (res.data or [])]
+        return {"success": True, "dates": dates}
+    except Exception as e:
+        print(f"Error fetching chip dates: {e}")
+        return {"success": False, "error": str(e), "dates": []}
+
+
+@app.get("/api/chip/summary")
+async def get_chip_summary(date: Optional[str] = None):
+    """取得指定日期的宏觀多空結論與多空司令"""
+    try:
+        query = supabase.table("daily_chip_summary").select("*")
+        if date:
+            query = query.eq("trade_date", date)
+        else:
+            query = query.order("trade_date", desc=True).limit(1)
+        res = await asyncio.to_thread(lambda: query.execute())
+        data = res.data[0] if res.data else None
+        return {"success": True, "data": data}
+    except Exception as e:
+        print(f"Error fetching chip summary: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/chip/accumulation")
+async def get_chip_accumulation(date: Optional[str] = None, period: int = 20):
+    """取得指定日期與週期的主力吸籌排行榜 (5d / 10d / 20d / 60d)"""
+    try:
+        if not date:
+            latest_res = await asyncio.to_thread(
+                lambda: supabase.table("daily_chip_summary")
+                .select("trade_date")
+                .order("trade_date", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if latest_res.data:
+                date = latest_res.data[0]["trade_date"]
+
+        if not date:
+            return {"success": True, "data": []}
+
+        res = await asyncio.to_thread(
+            lambda: supabase.table("chip_accumulation_signals")
+            .select("*")
+            .eq("trade_date", date)
+            .eq("period_days", period)
+            .order("net_amt_yi", desc=True)
+            .limit(50)
+            .execute()
+        )
+        return {"success": True, "data": res.data or [], "date": date, "period": period}
+    except Exception as e:
+        print(f"Error fetching chip accumulation: {e}")
+        return {"success": False, "error": str(e), "data": []}
+
+
+@app.get("/api/chip/exit")
+async def get_chip_exit(date: Optional[str] = None):
+    """取得指定日期的主力出貨逃離避坑榜"""
+    try:
+        if not date:
+            latest_res = await asyncio.to_thread(
+                lambda: supabase.table("daily_chip_summary")
+                .select("trade_date")
+                .order("trade_date", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if latest_res.data:
+                date = latest_res.data[0]["trade_date"]
+
+        if not date:
+            return {"success": True, "data": []}
+
+        res = await asyncio.to_thread(
+            lambda: supabase.table("chip_exit_signals")
+            .select("*")
+            .eq("trade_date", date)
+            .order("dump_amt_yi", desc=True)
+            .limit(50)
+            .execute()
+        )
+        return {"success": True, "data": res.data or [], "date": date}
+    except Exception as e:
+        print(f"Error fetching chip exit: {e}")
+        return {"success": False, "error": str(e), "data": []}
+
+
+@app.get("/api/chip/institutions")
+async def get_chip_institutions(date: Optional[str] = None, category: Optional[str] = None):
+    """取得外資各大席位與本土法人部重押表"""
+    try:
+        if not date:
+            latest_res = await asyncio.to_thread(
+                lambda: supabase.table("daily_chip_summary")
+                .select("trade_date")
+                .order("trade_date", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if latest_res.data:
+                date = latest_res.data[0]["trade_date"]
+
+        if not date:
+            return {"success": True, "data": []}
+
+        query = supabase.table("broker_institution_ranks").select("*").eq("trade_date", date)
+        if category and category != "ALL":
+            query = query.eq("category", category)
+        query = query.order("net_amt_yi", desc=True)
+
+        res = await asyncio.to_thread(lambda: query.execute())
+        return {"success": True, "data": res.data or [], "date": date}
+    except Exception as e:
+        print(f"Error fetching chip institutions: {e}")
+        return {"success": False, "error": str(e), "data": []}
+
+
+@app.get("/api/chip/vwap")
+async def get_chip_vwap(date: Optional[str] = None):
+    """取得尾盤放量站上 VWAP 逆向歸因表"""
+    try:
+        if not date:
+            latest_res = await asyncio.to_thread(
+                lambda: supabase.table("daily_chip_summary")
+                .select("trade_date")
+                .order("trade_date", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if latest_res.data:
+                date = latest_res.data[0]["trade_date"]
+
+        if not date:
+            return {"success": True, "data": []}
+
+        res = await asyncio.to_thread(
+            lambda: supabase.table("vwap_attribution_signals")
+            .select("*")
+            .eq("trade_date", date)
+            .order("net_amt_yi", desc=True)
+            .limit(50)
+            .execute()
+        )
+        return {"success": True, "data": res.data or [], "date": date}
+    except Exception as e:
+        print(f"Error fetching chip vwap: {e}")
+        return {"success": False, "error": str(e), "data": []}
+
+
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 

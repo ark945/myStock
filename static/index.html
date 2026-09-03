@@ -62,6 +62,7 @@
             <button class="tab-btn" data-tab="jp-market">日股</button>
             <button class="tab-btn" data-tab="kr-market">韓股</button>
             <button class="tab-btn" data-tab="twf-market">台指期夜盤</button>
+        <button class="tab-btn chip-tab-btn" data-tab="chip-warroom">🏛️ 籌碼戰情室</button>
         </nav>
 
         <!-- 追蹤清單分頁內容 -->
@@ -331,6 +332,97 @@
         </div>
 
         <!-- 說明與聲明 -->
+        
+        <!-- 🏛️ 主力籌碼戰情室 Tab Content -->
+        <div id="chip-warroom-tab" class="tab-content">
+            <!-- 戰情室頂部控制列 -->
+            <div class="chip-topbar">
+                <div class="chip-topbar-left">
+                    <h2 class="chip-title">🏛️ 台股主力籌碼戰情室</h2>
+                    <span class="chip-subtitle">全市場分點即時穿透 ｜ 四週期波段吸籌 ｜ 主力出貨避坑 ｜ 外資法人席位</span>
+                </div>
+                <div class="chip-topbar-right">
+                    <label for="chipDateSelect" class="chip-date-label">📅 交易日切換：</label>
+                    <select id="chipDateSelect" class="chip-date-select">
+                        <option value="">載入中...</option>
+                    </select>
+                    <button id="chipRefreshBtn" class="btn-chip-refresh" title="重新整理數據">🔄 重新整理</button>
+                </div>
+            </div>
+
+            <!-- 子分頁導覽按鈕 (Pill Segment Controls) -->
+            <div class="chip-subnav">
+                <button class="chip-subtab-btn active" data-subtab="summary">👑 今日戰情速覽</button>
+                <button class="chip-subtab-btn" data-subtab="accumulation">📥 四週期吸籌總表</button>
+                <button class="chip-subtab-btn danger" data-subtab="exit">📤 主力出貨下車</button>
+                <button class="chip-subtab-btn" data-subtab="institutions">🌐 外資與本土法人</button>
+                <button class="chip-subtab-btn" data-subtab="vwap">⚡ 尾盤VWAP突襲</button>
+            </div>
+
+            <!-- 1. 戰情速覽面板 -->
+            <div id="chip-subtab-summary" class="chip-subcontent active">
+                <div class="chip-macro-duel" id="chipMacroDuel">
+                    <!-- 今日多空司令對決卡 (動態渲染) -->
+                    <div class="chip-loading">⏳ 正在載入主力戰情...</div>
+                </div>
+                <div class="chip-highlight-section">
+                    <h3 class="chip-section-title">⭐ 今日最關鍵主力訊號精選</h3>
+                    <div class="chip-cards-grid" id="chipHighlightsGrid">
+                        <!-- 動態載入精選卡片 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 四週期吸籌面板 -->
+            <div id="chip-subtab-accumulation" class="chip-subcontent">
+                <div class="chip-period-filter">
+                    <span class="chip-filter-label">選擇吸籌週期：</span>
+                    <button class="chip-period-pill" data-period="5">⚡ 5日短線點火</button>
+                    <button class="chip-period-pill" data-period="10">🔥 10日雙週波段</button>
+                    <button class="chip-period-pill active" data-period="20">💎 20日月波段 (川湖模式)</button>
+                    <button class="chip-period-pill" data-period="60">🏰 60日季線長莊</button>
+                    <div class="chip-search-box">
+                        <input type="text" id="chipAccumSearch" placeholder="搜尋股票代號或名稱..." class="chip-input-search">
+                    </div>
+                </div>
+                <div class="chip-cards-grid" id="chipAccumGrid">
+                    <!-- 動態載入吸籌卡片 -->
+                </div>
+            </div>
+
+            <!-- 3. 主力出貨下車避坑面板 -->
+            <div id="chip-subtab-exit" class="chip-subcontent">
+                <div class="chip-exit-warning-banner">
+                    ⚠️ <strong>主力高檔獲利了結 / 連續賣超清單</strong>：追蹤近 20 日長期重押、但近 5 日反手大舉砍倉之標的，防範多殺多與高檔接刀風險！
+                </div>
+                <div class="chip-cards-grid" id="chipExitGrid">
+                    <!-- 動態載入出貨卡片 -->
+                </div>
+            </div>
+
+            <!-- 4. 外資與本土法人部面板 -->
+            <div id="chip-subtab-institutions" class="chip-subcontent">
+                <div class="chip-inst-filter">
+                    <button class="chip-inst-pill active" data-cat="ALL">全部機構席位</button>
+                    <button class="chip-inst-pill" data-cat="FOREIGN">🌐 外資席位 (大摩/高盛/美林)</button>
+                    <button class="chip-inst-pill" data-cat="DOMESTIC_INST">🏢 本土法人部/總公司</button>
+                </div>
+                <div class="chip-cards-grid" id="chipInstGrid">
+                    <!-- 動態載入法人卡片 -->
+                </div>
+            </div>
+
+            <!-- 5. 尾盤 VWAP 歸因面板 -->
+            <div id="chip-subtab-vwap" class="chip-subcontent">
+                <div class="chip-vwap-banner">
+                    💡 <strong>尾盤放量站上均價線 (VWAP) 逆向歸因</strong>：收盤價高於全日均價且尾盤爆量大買，即時拆解推手是「隔日沖急拉倒貨」還是「波段長莊最高價掃貨」。
+                </div>
+                <div class="chip-cards-grid" id="chipVwapGrid">
+                    <!-- 動態載入尾盤卡片 -->
+                </div>
+            </div>
+        </div>
+
         <footer class="app-footer">
             <span>台股資料來自 TWSE/TPEx・美日韓股資料來自 Yahoo Finance（約 15 分鐘延遲）</span>
         </footer>
