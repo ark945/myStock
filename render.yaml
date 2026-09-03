@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: mystock
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /api/health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: PYTHONUNBUFFERED
+        value: "1"

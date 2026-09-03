@@ -12,6 +12,7 @@ import re
 from datetime import datetime, timedelta
 import http.cookiejar
 from fastapi import FastAPI, Query, Body
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -207,6 +208,25 @@ app = FastAPI(
     description="股票追蹤儀表板 API",
     lifespan=lifespan
 )
+
+# 支援跨來源資源共用 (CORS)，方便 GitHub Pages 前端或第三方客戶端整合
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/api/health")
+async def health_check():
+    """健康檢查端點，供 Render/Zeabur/Uptime 監控與保活"""
+    return {
+        "status": "ok",
+        "service": "myStock",
+        "time": datetime.now().isoformat()
+    }
 
 
 # --- Pydantic Models ---
