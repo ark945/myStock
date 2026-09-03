@@ -357,6 +357,7 @@
                 <button class="chip-subtab-btn danger" data-subtab="exit">📤 主力出貨下車</button>
                 <button class="chip-subtab-btn" data-subtab="institutions">🌐 外資與本土法人</button>
                 <button class="chip-subtab-btn" data-subtab="vwap">⚡ 尾盤VWAP突襲</button>
+                <button class="chip-subtab-btn" data-subtab="derivatives">📊 衍生與資券雷達</button>
             </div>
 
             <!-- 1. 戰情速覽面板 -->
@@ -419,6 +420,22 @@
                 </div>
                 <div class="chip-cards-grid" id="chipVwapGrid">
                     <!-- 動態載入尾盤卡片 -->
+                </div>
+            </div>
+
+            <!-- 6. 籌碼衍生與資券雷達面板 -->
+            <div id="chip-subtab-derivatives" class="chip-subcontent">
+                <div class="chip-vwap-banner" style="border-left-color: #38bdf8; background: rgba(56, 189, 248, 0.12);">
+                    🎯 <strong>籌碼衍生量化雷達</strong>：融合全市場每日融資融券、券資比、券商買賣家數差與集保千張大戶，精準狙擊「極品軋空」與避開「散戶接刀套牢坑」。
+                </div>
+                <div class="chip-inst-filter" style="margin-bottom: 20px;">
+                    <button class="chip-deriv-pill active" data-type="ALL">全部衍生情報</button>
+                    <button class="chip-deriv-pill" data-type="squeeze">🚀 極品軋空候選</button>
+                    <button class="chip-deriv-pill" data-type="trap">⚠️ 散戶接刀套牢坑</button>
+                    <button class="chip-deriv-pill" data-type="concentrated">💎 籌碼極度集中榜</button>
+                </div>
+                <div class="chip-cards-grid" id="chipDerivativesGrid">
+                    <!-- 動態載入衍生卡片 -->
                 </div>
             </div>
         </div>

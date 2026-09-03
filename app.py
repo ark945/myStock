@@ -1763,6 +1763,37 @@ async def get_chip_vwap(date: Optional[str] = None):
 
 
 
+@app.get("/api/chip/derivatives")
+async def get_chip_derivatives(date: Optional[str] = None, signal_type: Optional[str] = None):
+    """取得指定日期的籌碼衍生指標 (極品軋空 / 散戶接刀 / 籌碼極度集中)"""
+    try:
+        if not date:
+            latest_res = await asyncio.to_thread(
+                lambda: supabase.table("daily_chip_summary")
+                .select("trade_date")
+                .order("trade_date", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if latest_res.data:
+                date = latest_res.data[0]["trade_date"]
+
+        if not date:
+            return {"success": True, "data": []}
+
+        def _query():
+            q = supabase.table("chip_derivatives_signals").select("*").eq("trade_date", date)
+            if signal_type and signal_type != "ALL":
+                q = q.eq("signal_type", signal_type)
+            return q.order("short_margin_ratio_pct", desc=True).limit(60).execute()
+
+        res = await asyncio.to_thread(_query)
+        return {"success": True, "data": res.data or [], "date": date}
+    except Exception as e:
+        print(f"Error fetching chip derivatives: {e}")
+        return {"success": False, "error": str(e), "data": []}
+
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
