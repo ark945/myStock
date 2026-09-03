@@ -57,11 +57,11 @@ git push origin main
 2. 點選 **"New +" -> "Web Service"**。
 3. 選擇 **"Build and deploy from a Git repository"**，選取 `ark945/myStock` 倉庫。
 4. 設定基本資料：
-   - **Name**: `mystock`（將產生 `https://mystock-xxxx.onrender.com` 網址）
-   - **Region**: 建議選擇 `Singapore` 或 `Oregon`（新加坡節點對台灣連線最快最穩）
+   - **Name（重要）**: 填入 **`ark945-mystock`**（建立當下的 Name 會永久決定 `.onrender.com` 的子網域）
+   - **Region**: 建議選擇 `Singapore`（新加坡節點對台灣連線最快最穩）
    - **Branch**: `main`
    - **Runtime**: `Docker` (系統會自動抓取目錄下的 `Dockerfile`)
-   - **Instance Type**: `Free`
+   - **Instance Type / Compute**: 務必確認勾選最上方的 **`$0 / month Free`** 免費方案
 5. 設定環境變數 (Environment Variables)：
    - `SUPABASE_URL`: 填入您的 Supabase URL
    - `SUPABASE_KEY`: 填入您的 Supabase Key
@@ -72,12 +72,10 @@ git push origin main
 
 ## 5. 自訂網址與獨立網域設定 (Custom URL & Domain)
 
-### 5.1 修改 Render 預設子網域名稱 (免費且推薦)
-若不想使用帶有隨機碼的網址（例如想要 `https://ark945-mystock.onrender.com`）：
-1. 進入該 Web Service 的 **"Settings"** 頁面。
-2. 找到最上方的 **"Name"** 欄位，點選 **Edit**。
-3. 改為 `ark945-mystock`。
-4. 點擊 **"Save Changes"**，網址即時生效更新。
+### 5.1 取得固定乾淨的 Render 免費子網址
+- Render 的 `.onrender.com` 網址是在建立服務時依據 Name 永久綁定的。
+- 若建立時 Name 填寫 `ark945-mystock`，網址即為：
+  👉 **`https://ark945-mystock.onrender.com`**
 
 ### 5.2 綁定自有獨立網域 (Custom Domain)
 1. 點選服務頁面左側的 **"Custom Domains"**。
