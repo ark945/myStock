@@ -70,6 +70,23 @@ git push origin main
 
 ---
 
-## 5. 後續防休眠保活技巧 (Keep-Alive)
+## 5. 自訂網址與獨立網域設定 (Custom URL & Domain)
+
+### 5.1 修改 Render 預設子網域名稱 (免費且推薦)
+若不想使用帶有隨機碼的網址（例如想要 `https://ark945-mystock.onrender.com`）：
+1. 進入該 Web Service 的 **"Settings"** 頁面。
+2. 找到最上方的 **"Name"** 欄位，點選 **Edit**。
+3. 改為 `ark945-mystock`。
+4. 點擊 **"Save Changes"**，網址即時生效更新。
+
+### 5.2 綁定自有獨立網域 (Custom Domain)
+1. 點選服務頁面左側的 **"Custom Domains"**。
+2. 點擊 **"Add Custom Domain"**，輸入您的子網域（如 `stock.yourdomain.com`）。
+3. 至您的 DNS 代管商（如 Cloudflare）新增一筆指向 Render 的 **CNAME 紀錄**。
+4. Render 通過驗證後會自動核發並終身免費自動續期 SSL 憑證。
+
+---
+
+## 6. 後續防休眠保活技巧 (Keep-Alive)
 若使用 Render 免費方案，在 15 分鐘無人存取後會暫時休眠：
 - 可使用免費的 [UptimeRobot](https://uptimerobot.com/) 或 [cron-job.org](https://cron-job.org/)，設定每 10 分鐘發送一次 HTTP GET 請求到 `https://您的Render網址/api/health`（或首頁），即可保持 24 小時不休眠且秒開。
