@@ -39,21 +39,21 @@ def load_config():
     except Exception:
         return {}
 
-IS_CLOUD = os.environ.get("SPACE_ID") is not None
-local_cfg = load_config()
+# 優先讀取系統環境變數 (支援 Render, Zeabur, HF Spaces, Docker 等通用雲端環境)
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
-if IS_CLOUD:
-    SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-    SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
-else:
+# 若環境變數未提供，回退讀取本地 config.json (本地開發環境)
+if not SUPABASE_URL or not SUPABASE_KEY:
+    local_cfg = load_config()
     s_cfg = local_cfg.get("supabase_settings", {})
-    SUPABASE_URL = s_cfg.get("url", "")
-    SUPABASE_KEY = s_cfg.get("key", "")
+    SUPABASE_URL = SUPABASE_URL or s_cfg.get("url", "")
+    SUPABASE_KEY = SUPABASE_KEY or s_cfg.get("key", "")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    print("⚠️ 警告: 缺少 Supabase 設定資訊！")
+    print("⚠️ 警告: 缺少 Supabase 設定資訊！請在平台 Environment Variables 設定 SUPABASE_URL 與 SUPABASE_KEY。")
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase: Client = create_client(SUPABASE_URL or "https://placeholder.supabase.co", SUPABASE_KEY or "placeholder-key")
 
 
 # ==========================================
