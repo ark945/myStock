@@ -2608,6 +2608,8 @@ function loadChipSubtabData() {
         loadChipInstitutionsData("ALL");
     } else if (chipCurrentSubtab === "vwap") {
         loadChipVwapData();
+    } else if (chipCurrentSubtab === "derivatives") {
+        loadChipDerivativesData(chipDerivType || "ALL");
     }
 }
 
@@ -2625,6 +2627,10 @@ async function loadChipSummaryData() {
         const res = await resp.json();
         if (res.success && res.data) {
             const d = res.data;
+            const foreignOi = d.foreign_tx_oi != null ? (d.foreign_tx_oi > 0 ? '+' : '') + Number(d.foreign_tx_oi).toLocaleString() + ' 口' : '-';
+            const retailMtx = d.retail_mtx_ratio_pct != null ? (d.retail_mtx_ratio_pct > 0 ? '+' : '') + Number(d.retail_mtx_ratio_pct).toFixed(2) + '%' : '-';
+            const macroSentiment = d.macro_sentiment || '中性整理';
+
             duelEl.innerHTML = `
                 <div class="duel-card bull">
                     <div class="duel-badge bull">🐂 多頭司令 (買超之王)</div>
@@ -2642,6 +2648,33 @@ async function loadChipSummaryData() {
                     <div class="duel-broker">${d.bear_champion_broker || "暫無"}</div>
                     <div class="duel-amt">${Number(d.bear_champion_amt || 0).toFixed(2)} 億元</div>
                     <div class="duel-stocks"><strong>調節出貨標的：</strong><br>${d.bear_champion_stocks || "分散多檔"}</div>
+                </div>
+                
+                <!-- 🛡️ 大盤微觀期權避震雷達 -->
+                <div class="macro-radar-card" style="grid-column: 1 / -1; width: 100%; margin-top: 14px; padding: 14px 22px; background: linear-gradient(135deg, rgba(30,41,59,0.9), rgba(15,23,42,0.95)); border-radius: 12px; border: 1px solid rgba(56,189,248,0.35); box-shadow: 0 4px 16px rgba(0,0,0,0.35);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="font-size:22px;">🛡️</span>
+                            <div>
+                                <div style="font-size:15px; font-weight:800; color:#f8fafc;">大盤微觀期權避震雷達</div>
+                                <div style="font-size:12px; color:#94a3b8;">外資期貨與散戶小台微觀合力</div>
+                            </div>
+                        </div>
+                        <div style="font-size:14px; font-weight:800; color:#fca5a5; background:rgba(239,68,68,0.2); padding:5px 14px; border-radius:20px; border:1px solid rgba(239,68,68,0.4);">
+                            ${macroSentiment}
+                        </div>
+                    </div>
+                    <div style="display:flex; justify-content:space-around; align-items:center; margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.1);">
+                        <div style="text-align:center;">
+                            <div style="font-size:12px; color:#94a3b8; margin-bottom:2px;">外資大台淨未平倉</div>
+                            <div style="font-size:17px; font-weight:900; color:${(d.foreign_tx_oi||0) < 0 ? '#ef4444' : '#22c55e'};">${foreignOi}</div>
+                        </div>
+                        <div style="width:1px; height:28px; background:rgba(255,255,255,0.1);"></div>
+                        <div style="text-align:center;">
+                            <div style="font-size:12px; color:#94a3b8; margin-bottom:2px;">散戶小台多空比 (反指標)</div>
+                            <div style="font-size:17px; font-weight:900; color:${(d.retail_mtx_ratio_pct||0) > 0 ? '#f59e0b' : '#38bdf8'};">${retailMtx}</div>
+                        </div>
+                    </div>
                 </div>
             `;
         } else {
@@ -2699,15 +2732,26 @@ function createAccumCardHtml(item) {
     const devClass = costDev >= 0 ? "gain" : "loss";
     const devSign = costDev >= 0 ? "+" : "";
 
+    const shortRatioBadge = item.short_margin_ratio_pct != null 
+        ? `<span class="chip-badge-item" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.5); font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px; white-space: nowrap;">🔥 券資比 ${Number(item.short_margin_ratio_pct).toFixed(1)}%</span>` 
+        : '';
+    const tdccBadge = item.large_shareholder_pct != null 
+        ? `<span class="chip-badge-item" style="background: rgba(168, 85, 247, 0.2); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.5); font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px; white-space: nowrap;">🏰 大戶 ${Number(item.large_shareholder_pct).toFixed(1)}%</span>` 
+        : '';
+
     return `
         <div class="chip-card glassmorphism">
-            <div class="chip-card-header">
-                <div>
+            <div class="chip-card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
                     <span class="chip-symbol">${item.symbol}</span>
                     <span class="chip-stock-name">${item.stock_name}</span>
                     <span class="chip-market-badge">${item.market || "上市"}</span>
                 </div>
-                <div class="chip-persona-badge">${item.persona_tag || "波段主力"}</div>
+                <div style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
+                    ${shortRatioBadge}
+                    ${tdccBadge}
+                    <div class="chip-persona-badge">${item.persona_tag || "波段主力"}</div>
+                </div>
             </div>
 
             <div class="chip-card-body">
@@ -2738,6 +2782,14 @@ function createAccumCardHtml(item) {
                     <div class="metric-mini">
                         <span class="mini-label">歷史勝率</span>
                         <span class="mini-val highlight">${item.backtest_win_rate ? item.backtest_win_rate + '%' : '-'}</span>
+                    </div>
+                    <div class="metric-mini">
+                        <span class="mini-label">券資比</span>
+                        <span class="mini-val" style="color: #f87171; font-weight: 700;">${item.short_margin_ratio_pct != null ? Number(item.short_margin_ratio_pct).toFixed(1) + '%' : '-'}</span>
+                    </div>
+                    <div class="metric-mini">
+                        <span class="mini-label">千張大戶</span>
+                        <span class="mini-val" style="color: #c084fc; font-weight: 700;">${item.large_shareholder_pct != null ? Number(item.large_shareholder_pct).toFixed(1) + '%' : '-'}</span>
                     </div>
                 </div>
 
@@ -2933,6 +2985,85 @@ async function loadChipVwapData() {
         }
     } catch (e) {
         console.error("Error loading vwap:", e);
+        gridEl.innerHTML = `<div class="chip-error">載入失敗: ${e.message}</div>`;
+    }
+}
+
+let chipDerivType = "ALL";
+
+async function loadChipDerivativesData(signalType = "ALL") {
+    chipDerivType = signalType;
+    const gridEl = document.getElementById("chipDerivativesGrid");
+    if (!gridEl) return;
+    gridEl.innerHTML = `<div class="chip-loading">⏳ 正在載入衍生量化指標 (軋空/接刀/集中度)...</div>`;
+
+    try {
+        const url = `/api/chip/derivatives?date=${chipCurrentDate}${signalType !== 'ALL' ? '&signal_type=' + signalType : ''}`;
+        const resp = await fetch(url);
+        const res = await resp.json();
+
+        if (res.success && res.data && res.data.length > 0) {
+            gridEl.innerHTML = res.data.map(item => {
+                let badgeClass = "squeeze-badge";
+                let borderColor = "rgba(239, 68, 68, 0.4)";
+                if (item.signal_type === 'trap') {
+                    badgeClass = "trap-badge";
+                    borderColor = "rgba(245, 158, 11, 0.4)";
+                } else if (item.signal_type === 'concentrated') {
+                    badgeClass = "concentrated-badge";
+                    borderColor = "rgba(56, 189, 248, 0.4)";
+                }
+
+                return `
+                <div class="chip-card glassmorphism" style="border: 1px solid ${borderColor};">
+                    <div class="chip-card-header">
+                        <div class="chip-header-left">
+                            <span class="chip-symbol">${item.symbol}</span>
+                            <span class="chip-stock-name">${item.stock_name}</span>
+                            <span class="chip-market-badge">${item.market || "上市"}</span>
+                        </div>
+                        <div class="chip-persona-badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5;">${item.persona_tag || "衍生指標"}</div>
+                    </div>
+                    <div class="chip-card-body">
+                        <div class="chip-metric-row main">
+                            <div class="metric-block">
+                                <span class="metric-label">最新收盤價</span>
+                                <span class="metric-value price">${item.close_price ? item.close_price.toFixed(2) + ' 元' : '-'}</span>
+                            </div>
+                            <div class="metric-block">
+                                <span class="metric-label">券資比</span>
+                                <span class="metric-value highlight" style="color: #f87171;">${item.short_margin_ratio_pct ? item.short_margin_ratio_pct.toFixed(1) + '%' : '-'}</span>
+                            </div>
+                        </div>
+                        <div class="chip-metric-row sub">
+                            <div class="metric-block sm">
+                                <span class="metric-label">融資增減</span>
+                                <span class="metric-value sm">${item.margin_net !== null ? (item.margin_net > 0 ? '+' : '') + item.margin_net.toFixed(0) + ' 張' : '-'}</span>
+                            </div>
+                            <div class="metric-block sm">
+                                <span class="metric-label">融券增減</span>
+                                <span class="metric-value sm">${item.short_net !== null ? (item.short_net > 0 ? '+' : '') + item.short_net.toFixed(0) + ' 張' : '-'}</span>
+                            </div>
+                            <div class="metric-block sm">
+                                <span class="metric-label">買賣家數差</span>
+                                <span class="metric-value sm" style="color: ${item.diff_broker_count < 0 ? '#38bdf8' : '#f59e0b'}; font-weight: 700;">${item.diff_broker_count !== null ? (item.diff_broker_count > 0 ? '+' : '') + item.diff_broker_count : '-'}</span>
+                            </div>
+                            <div class="metric-block sm">
+                                <span class="metric-label">千張大戶%</span>
+                                <span class="metric-value sm" style="color: #c084fc;">${item.large_shareholder_pct ? item.large_shareholder_pct.toFixed(1) + '%' : '-'}</span>
+                            </div>
+                        </div>
+                        <div class="chip-action-guide" style="background: rgba(15, 23, 42, 0.6);">
+                            💡 <strong>實戰指引</strong>：${item.action_guide || "高風險高波動，嚴設風控。"}
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join("");
+        } else {
+            gridEl.innerHTML = `<div class="chip-empty">此交易日無符合條件之衍生指標標的</div>`;
+        }
+    } catch (e) {
         gridEl.innerHTML = `<div class="chip-error">載入失敗: ${e.message}</div>`;
     }
 }
