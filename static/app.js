@@ -2732,15 +2732,26 @@ function createAccumCardHtml(item) {
     const devClass = costDev >= 0 ? "gain" : "loss";
     const devSign = costDev >= 0 ? "+" : "";
 
+    const shortRatioBadge = item.short_margin_ratio_pct != null 
+        ? `<span class="chip-badge-item" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.5); font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px; white-space: nowrap;">🔥 券資比 ${Number(item.short_margin_ratio_pct).toFixed(1)}%</span>` 
+        : '';
+    const tdccBadge = item.large_shareholder_pct != null 
+        ? `<span class="chip-badge-item" style="background: rgba(168, 85, 247, 0.2); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.5); font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px; white-space: nowrap;">🏰 大戶 ${Number(item.large_shareholder_pct).toFixed(1)}%</span>` 
+        : '';
+
     return `
         <div class="chip-card glassmorphism">
-            <div class="chip-card-header">
-                <div>
+            <div class="chip-card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
                     <span class="chip-symbol">${item.symbol}</span>
                     <span class="chip-stock-name">${item.stock_name}</span>
                     <span class="chip-market-badge">${item.market || "上市"}</span>
                 </div>
-                <div class="chip-persona-badge">${item.persona_tag || "波段主力"}</div>
+                <div style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
+                    ${shortRatioBadge}
+                    ${tdccBadge}
+                    <div class="chip-persona-badge">${item.persona_tag || "波段主力"}</div>
+                </div>
             </div>
 
             <div class="chip-card-body">
@@ -2771,6 +2782,14 @@ function createAccumCardHtml(item) {
                     <div class="metric-mini">
                         <span class="mini-label">歷史勝率</span>
                         <span class="mini-val highlight">${item.backtest_win_rate ? item.backtest_win_rate + '%' : '-'}</span>
+                    </div>
+                    <div class="metric-mini">
+                        <span class="mini-label">券資比</span>
+                        <span class="mini-val" style="color: #f87171; font-weight: 700;">${item.short_margin_ratio_pct != null ? Number(item.short_margin_ratio_pct).toFixed(1) + '%' : '-'}</span>
+                    </div>
+                    <div class="metric-mini">
+                        <span class="mini-label">千張大戶</span>
+                        <span class="mini-val" style="color: #c084fc; font-weight: 700;">${item.large_shareholder_pct != null ? Number(item.large_shareholder_pct).toFixed(1) + '%' : '-'}</span>
                     </div>
                 </div>
 
