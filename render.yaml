@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: mystock
+    name: ark945-mystock
     runtime: docker
     plan: free
     region: singapore
