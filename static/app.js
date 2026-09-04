@@ -2592,6 +2592,17 @@ function setupChipEvents() {
             const cat = pill.getAttribute("data-cat");
             loadChipInstitutionsData(cat);
         });
+
+    // 衍生與資券雷達分類膠囊過濾
+    document.querySelectorAll(".chip-deriv-pill").forEach(pill => {
+        pill.addEventListener("click", () => {
+            document.querySelectorAll(".chip-deriv-pill").forEach(p => p.classList.remove("active"));
+            pill.classList.add("active");
+            const dType = pill.getAttribute("data-type") || "ALL";
+            loadChipDerivativesData(dType);
+        });
+    });
+
     });
 }
 
@@ -3006,54 +3017,77 @@ async function loadChipDerivativesData(signalType = "ALL") {
             gridEl.innerHTML = res.data.map(item => {
                 let badgeClass = "squeeze-badge";
                 let borderColor = "rgba(239, 68, 68, 0.4)";
+                let personaTag = item.persona_tag || "🚀 極品軋空";
+                let tagBg = "rgba(239, 68, 68, 0.2)";
+                let tagColor = "#fca5a5";
+
                 if (item.signal_type === 'trap') {
                     badgeClass = "trap-badge";
                     borderColor = "rgba(245, 158, 11, 0.4)";
+                    personaTag = item.persona_tag || "⚠️ 散戶接刀";
+                    tagBg = "rgba(245, 158, 11, 0.2)";
+                    tagColor = "#fcd34d";
                 } else if (item.signal_type === 'concentrated') {
                     badgeClass = "concentrated-badge";
                     borderColor = "rgba(56, 189, 248, 0.4)";
+                    personaTag = item.persona_tag || "💎 籌碼極度集中";
+                    tagBg = "rgba(56, 189, 248, 0.2)";
+                    tagColor = "#7dd3fc";
                 }
+
+                const stockName = item.stock_name || item.name || item.symbol;
+                const marketName = item.market || "上市";
+                const closeText = (item.close_price != null && !isNaN(item.close_price)) ? Number(item.close_price).toFixed(2) + ' 元' : '-';
+                const shortRatioText = (item.short_margin_ratio_pct != null && !isNaN(item.short_margin_ratio_pct)) ? Number(item.short_margin_ratio_pct).toFixed(1) + '%' : '-';
+                const marginNetText = (item.margin_net != null && !isNaN(item.margin_net)) ? (item.margin_net > 0 ? '+' : '') + Number(item.margin_net).toLocaleString() + ' 張' : '-';
+                const shortNetText = (item.short_net != null && !isNaN(item.short_net)) ? (item.short_net > 0 ? '+' : '') + Number(item.short_net).toLocaleString() + ' 張' : '-';
+                
+                const diffBrokerVal = item.diff_broker_count != null ? item.diff_broker_count : item.broker_diff;
+                const diffBrokerText = (diffBrokerVal != null && !isNaN(diffBrokerVal)) ? (diffBrokerVal > 0 ? '+' : '') + Number(diffBrokerVal).toLocaleString() + ' 家' : '-';
+                const diffColor = (diffBrokerVal != null && diffBrokerVal < 0) ? '#38bdf8' : (diffBrokerVal > 0 ? '#f59e0b' : '#94a3b8');
+
+                const largePctText = (item.large_shareholder_pct != null && !isNaN(item.large_shareholder_pct)) ? Number(item.large_shareholder_pct).toFixed(1) + '%' : '-';
 
                 return `
                 <div class="chip-card glassmorphism" style="border: 1px solid ${borderColor};">
                     <div class="chip-card-header">
                         <div class="chip-header-left">
                             <span class="chip-symbol">${item.symbol}</span>
-                            <span class="chip-stock-name">${item.stock_name}</span>
-                            <span class="chip-market-badge">${item.market || "上市"}</span>
+                            <span class="chip-stock-name" style="font-size: 17px; font-weight: 800; color: #f8fafc; margin: 0 4px;">${stockName}</span>
+                            <span class="chip-market-badge" style="font-size: 11px; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius: 4px; color: #94a3b8;">${marketName}</span>
                         </div>
-                        <div class="chip-persona-badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5;">${item.persona_tag || "衍生指標"}</div>
+                        <div class="chip-persona-badge" style="background: ${tagBg}; color: ${tagColor}; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; border: 1px solid ${borderColor};">${personaTag}</div>
                     </div>
                     <div class="chip-card-body">
-                        <div class="chip-metric-row main">
+                        <div class="chip-metric-row main" style="display: flex; justify-content: space-between; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.08);">
                             <div class="metric-block">
-                                <span class="metric-label">最新收盤價</span>
-                                <span class="metric-value price">${item.close_price ? item.close_price.toFixed(2) + ' 元' : '-'}</span>
+                                <span class="metric-label" style="font-size: 11px; color: #94a3b8; display: block;">最新收盤價</span>
+                                <span class="metric-value price" style="font-size: 18px; font-weight: 800; color: #f8fafc;">${closeText}</span>
                             </div>
-                            <div class="metric-block">
-                                <span class="metric-label">券資比</span>
-                                <span class="metric-value highlight" style="color: #f87171;">${item.short_margin_ratio_pct ? item.short_margin_ratio_pct.toFixed(1) + '%' : '-'}</span>
+                            <div class="metric-block" style="text-align: right;">
+                                <span class="metric-label" style="font-size: 11px; color: #94a3b8; display: block;">券資比</span>
+                                <span class="metric-value highlight" style="font-size: 18px; font-weight: 800; color: #f87171;">${shortRatioText}</span>
                             </div>
                         </div>
-                        <div class="chip-metric-row sub">
-                            <div class="metric-block sm">
-                                <span class="metric-label">融資增減</span>
-                                <span class="metric-value sm">${item.margin_net !== null ? (item.margin_net > 0 ? '+' : '') + item.margin_net.toFixed(0) + ' 張' : '-'}</span>
+                        <div class="chip-metric-row sub" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px;">
+                            <div class="metric-block sm" style="text-align: center; background: rgba(0,0,0,0.2); padding: 6px 2px; border-radius: 6px;">
+                                <span class="metric-label" style="font-size: 10px; color: #94a3b8; display: block;">融資增減</span>
+                                <span class="metric-value sm" style="font-size: 13px; font-weight: 700; color: #e2e8f0;">${marginNetText}</span>
                             </div>
-                            <div class="metric-block sm">
-                                <span class="metric-label">融券增減</span>
-                                <span class="metric-value sm">${item.short_net !== null ? (item.short_net > 0 ? '+' : '') + item.short_net.toFixed(0) + ' 張' : '-'}</span>
+                            <div class="metric-block sm" style="text-align: center; background: rgba(0,0,0,0.2); padding: 6px 2px; border-radius: 6px;">
+                                <span class="metric-label" style="font-size: 10px; color: #94a3b8; display: block;">融券增減</span>
+                                <span class="metric-value sm" style="font-size: 13px; font-weight: 700; color: #fca5a5;">${shortNetText}</span>
                             </div>
-                            <div class="metric-block sm">
-                                <span class="metric-label">買賣家數差</span>
-                                <span class="metric-value sm" style="color: ${item.diff_broker_count < 0 ? '#38bdf8' : '#f59e0b'}; font-weight: 700;">${item.diff_broker_count !== null ? (item.diff_broker_count > 0 ? '+' : '') + item.diff_broker_count : '-'}</span>
+                            <div class="metric-block sm" style="text-align: center; background: rgba(0,0,0,0.2); padding: 6px 2px; border-radius: 6px;">
+                                <span class="metric-label" style="font-size: 10px; color: #94a3b8; display: block;">買賣家數差</span>
+                                <span class="metric-value sm" style="font-size: 13px; font-weight: 800; color: ${diffColor};">${diffBrokerText}</span>
                             </div>
-                            <div class="metric-block sm">
-                                <span class="metric-label">千張大戶%</span>
-                                <span class="metric-value sm" style="color: #c084fc;">${item.large_shareholder_pct ? item.large_shareholder_pct.toFixed(1) + '%' : '-'}</span>
+                            <div class="metric-block sm" style="text-align: center; background: rgba(0,0,0,0.2); padding: 6px 2px; border-radius: 6px;">
+                                <span class="metric-label" style="font-size: 10px; color: #94a3b8; display: block;">千張大戶%</span>
+                                <span class="metric-value sm" style="font-size: 13px; font-weight: 700; color: #c084fc;">${largePctText}</span>
                             </div>
                         </div>
-                        <div class="chip-action-guide" style="background: rgba(15, 23, 42, 0.6);">
+                        <div class="chip-action-guide" style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 8px; font-size: 12px; color: #cbd5e1; border-left: 3px solid ${borderColor};">
                             💡 <strong>實戰指引</strong>：${item.action_guide || "高風險高波動，嚴設風控。"}
                         </div>
                     </div>
@@ -3061,9 +3095,10 @@ async function loadChipDerivativesData(signalType = "ALL") {
                 `;
             }).join("");
         } else {
-            gridEl.innerHTML = `<div class="chip-empty">此交易日無符合條件之衍生指標標的</div>`;
+            gridEl.innerHTML = `<div class="chip-empty" style="text-align: center; padding: 40px; color: #94a3b8;">此交易日無符合條件之衍生指標標的</div>`;
         }
     } catch (e) {
-        gridEl.innerHTML = `<div class="chip-error">載入失敗: ${e.message}</div>`;
+        gridEl.innerHTML = `<div class="chip-error" style="text-align: center; padding: 40px; color: #f87171;">載入失敗: ${e.message}</div>`;
     }
 }
+

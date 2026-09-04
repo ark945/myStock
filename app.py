@@ -1785,10 +1785,30 @@ async def get_chip_derivatives(date: Optional[str] = None, signal_type: Optional
             q = supabase.table("chip_derivatives_signals").select("*").eq("trade_date", date)
             if signal_type and signal_type != "ALL":
                 q = q.eq("signal_type", signal_type)
-            return q.order("short_margin_ratio_pct", desc=True).limit(60).execute()
+            return q.limit(100).execute()
 
         res = await asyncio.to_thread(_query)
-        return {"success": True, "data": res.data or [], "date": date}
+        raw_data = res.data or []
+
+        # 在 Python 端進行智慧排序，避免 Postgres NULLS 影響順序
+        if signal_type == "squeeze":
+            raw_data.sort(key=lambda x: (x.get("short_margin_ratio_pct") is not None, x.get("short_margin_ratio_pct") or 0), reverse=True)
+        elif signal_type == "trap":
+            raw_data.sort(key=lambda x: (x.get("margin_net") is not None, x.get("margin_net") or 0), reverse=True)
+        elif signal_type == "concentrated":
+            raw_data.sort(key=lambda x: (x.get("diff_broker_count") is None, x.get("diff_broker_count") or 0))
+        else:
+            def _all_priority(item):
+                st = item.get("signal_type")
+                if st == "squeeze":
+                    return (0, -(item.get("short_margin_ratio_pct") or 0))
+                elif st == "concentrated":
+                    return (1, item.get("diff_broker_count") or 0)
+                else:
+                    return (2, -(item.get("margin_net") or 0))
+            raw_data.sort(key=_all_priority)
+
+        return {"success": True, "data": raw_data, "date": date}
     except Exception as e:
         print(f"Error fetching chip derivatives: {e}")
         return {"success": False, "error": str(e), "data": []}
