@@ -1814,6 +1814,77 @@ async def get_chip_derivatives(date: Optional[str] = None, signal_type: Optional
         return {"success": False, "error": str(e), "data": []}
 
 
+
+
+# ==========================================
+# 歷史日 K 線 API (供 TradingView 動態圖表)
+# ==========================================
+_kline_cache = {}
+
+@app.get("/api/kline/{symbol}")
+async def get_stock_kline(symbol: str, period: str = "1y"):
+    """取得指定股票的歷史日 K 線 (支援上市 .TW / 上櫃 .TWO / 美股)"""
+    clean_sym = symbol.strip().upper()
+    cache_key = f"{clean_sym}_{period}"
+    now_ts = time.time()
+    
+    if cache_key in _kline_cache:
+        cached_data, expire_at = _kline_cache[cache_key]
+        if now_ts < expire_at:
+            return cached_data
+
+    def _fetch():
+        candidates = []
+        if clean_sym.isdigit():
+            market_type = "twse"
+            if clean_sym in twstock.codes:
+                market_type = twstock.codes[clean_sym].market.lower()
+            if "otc" in market_type or "tpex" in market_type or "上櫃" in market_type:
+                candidates = [f"{clean_sym}.TWO", f"{clean_sym}.TW"]
+            else:
+                candidates = [f"{clean_sym}.TW", f"{clean_sym}.TWO"]
+        else:
+            candidates = [clean_sym]
+
+        df = None
+        for yf_sym in candidates:
+            try:
+                t = yf.Ticker(yf_sym)
+                df = t.history(period=period)
+                if df is not None and not df.empty and len(df) > 5:
+                    break
+            except Exception:
+                continue
+
+        if df is None or df.empty:
+            return {"success": False, "error": "查無此標的之歷史 K 線資料", "candles": []}
+
+        candles = []
+        for dt, row in df.iterrows():
+            d_str = dt.strftime("%Y-%m-%d")
+            o = round(float(row["Open"]), 2)
+            h = round(float(row["High"]), 2)
+            l = round(float(row["Low"]), 2)
+            c = round(float(row["Close"]), 2)
+            v = int(row["Volume"])
+            if o > 0 and c > 0:
+                candles.append({
+                    "time": d_str,
+                    "open": o,
+                    "high": h,
+                    "low": l,
+                    "close": c,
+                    "volume": v
+                })
+
+        return {"success": True, "symbol": clean_sym, "period": period, "candles": candles}
+
+    res = await asyncio.to_thread(_fetch)
+    if res.get("success"):
+        _kline_cache[cache_key] = (res, now_ts + 3600)  # 快取 1 小時
+    return res
+
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
