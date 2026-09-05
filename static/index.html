@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260904_deriv_v2">
+    <link rel="stylesheet" href="/static/style.css?v=20260905_kline_v2">
 </head>
 <body>
     <!-- 背景粒子裝飾 -->
@@ -595,6 +595,76 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=20260904_deriv_v2"></script>
+    
+    <!-- ========================================== -->
+    <!-- 動態 K 線圖與懸浮籌碼 HUD 彈窗 (Lightweight Charts) -->
+    <!-- ========================================== -->
+    <div class="modal-overlay kline-modal-overlay" id="klineModalOverlay">
+        <div class="modal-dialog kline-modal-dialog glassmorphism">
+            <div class="kline-modal-header">
+                <div class="kline-header-left">
+                    <div class="kline-stock-title">
+                        <span class="kline-stock-symbol" id="klineStockSymbol">2887</span>
+                        <span class="kline-stock-name" id="klineStockName">台新新光金</span>
+                        <span class="chip-market-badge" id="klineMarketBadge">上市</span>
+                    </div>
+                    <div class="kline-price-box">
+                        <span class="kline-cur-price" id="klineCurPrice">--</span>
+                        <span class="kline-cur-change" id="klineCurChange">--</span>
+                    </div>
+                </div>
+
+                <!-- 週期切換膠囊按鈕 -->
+                <div class="kline-period-pills">
+                    <button class="kline-period-btn" data-period="3mo">3個月 (60D)</button>
+                    <button class="kline-period-btn" data-period="6mo">半年 (120D)</button>
+                    <button class="kline-period-btn active" data-period="1y">1年 (250D) ⭐</button>
+                    <button class="kline-period-btn" data-period="2y">2年</button>
+                </div>
+
+                <button class="modal-close kline-modal-close" id="klineModalClose" title="關閉視窗">&times;</button>
+            </div>
+
+            <!-- 即時懸浮 HUD 資訊看板 (Mouse Over 即時動態連動) -->
+            <div class="kline-hud-bar" id="klineHudBar">
+                <div class="hud-item hud-date"><span class="hud-label">日期</span><span class="hud-val" id="hudDate">--</span></div>
+                <div class="hud-item"><span class="hud-label">開</span><span class="hud-val" id="hudOpen">--</span></div>
+                <div class="hud-item"><span class="hud-label">高</span><span class="hud-val" id="hudHigh">--</span></div>
+                <div class="hud-item"><span class="hud-label">低</span><span class="hud-val" id="hudLow">--</span></div>
+                <div class="hud-item"><span class="hud-label">收</span><span class="hud-val" id="hudClose">--</span></div>
+                <div class="hud-item"><span class="hud-label">量</span><span class="hud-val" id="hudVol">--</span></div>
+                <div class="hud-divider"></div>
+                <div class="hud-item ma20"><span class="hud-dot" style="background:#eab308;"></span><span class="hud-label">MA20</span><span class="hud-val" id="hudMA20">--</span></div>
+                <div class="hud-item ma60"><span class="hud-dot" style="background:#10b981;"></span><span class="hud-label">MA60</span><span class="hud-val" id="hudMA60">--</span></div>
+                <div class="hud-item ma250"><span class="hud-dot" style="background:#a855f7;"></span><span class="hud-label">MA250</span><span class="hud-val" id="hudMA250">--</span></div>
+                <div class="hud-divider"></div>
+                <div class="hud-item cost"><span class="hud-dot" style="background:#f59e0b;"></span><span class="hud-label">主力成本</span><span class="hud-val highlight-gold" id="hudCost">--</span></div>
+                <div class="hud-item dev"><span class="hud-label">成本偏離</span><span class="hud-val" id="hudDev">--</span></div>
+            </div>
+
+            <!-- 圖表載入中指示器 -->
+            <div class="kline-chart-wrapper">
+                <div class="kline-loading-spinner" id="klineLoadingSpinner">
+                    <div class="spinner-ring"></div>
+                    <span>正在獲取動態日 K 線數據...</span>
+                </div>
+                <!-- TradingView Lightweight Charts 容器 -->
+                <div class="kline-chart-container" id="klineChartContainer"></div>
+            </div>
+
+            <!-- 底部籌碼深度情報條 -->
+            <div class="kline-modal-footer">
+                <div class="kline-chip-summary" id="klineChipSummary">
+                    <!-- 動態填充: 主力分點、買超金額、純度、點火日起算日 -->
+                </div>
+                <button class="btn btn-secondary" id="klineModalCancel">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入 TradingView Lightweight Charts 獨立生產版 -->
+    <script src="https://unpkg.com/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js"></script>
+
+    <script src="/static/app.js?v=20260905_kline_v2"></script>
 </body>
 </html>

@@ -1177,6 +1177,7 @@ function renderTable() {
                 const pnlCash = calcPnlCash(price, stock.entryPrice, stock.market);
                 const isFirst = idx === 0;
                 const isLast = idx === watchlist.length - 1;
+                const klineBtnHtml = `<button class="btn-icon btn-kline" onclick="openKlineModal({ symbol: '${escapeHtml(stock.symbol)}', name: '${escapeHtml(stock.name)}', market: '${stock.market === 'TW' ? '台股' : (stock.market || '美股')}', buyAvgPrice: ${stock.entryPrice != null ? stock.entryPrice : 'null'}, ignitionDate: '${stock.entryDate || ''}' })" title="動態K線 (支援台/美股、個人建倉成本線)">📈</button>`;
                 const chipBtnHtml = stock.market === 'TW' 
                     ? `<button class="btn-icon btn-chip" onclick="openChipModal('${stock.symbol}')" title="籌碼分布">籌碼</button>` 
                     : '';
@@ -1188,7 +1189,7 @@ function renderTable() {
                 </td>
                 <td class="col-sticky">
                     <div class="cell-composite">
-                        <span class="cell-symbol">
+                        <span class="cell-symbol" style="cursor: pointer;" onclick="openKlineModal({ symbol: '${escapeHtml(stock.symbol)}', name: '${escapeHtml(stock.name)}', market: '${stock.market === 'TW' ? '台股' : (stock.market || '美股')}', buyAvgPrice: ${stock.entryPrice != null ? stock.entryPrice : 'null'}, ignitionDate: '${stock.entryDate || ''}' })" title="點擊展開動態 K 線圖">
                             ${escapeHtml(stock.symbol)}
                             <span class="market-tag ${stock.market.toLowerCase()}">${stock.market}</span>
                         </span>
@@ -1245,7 +1246,7 @@ function renderTable() {
                     </div>
                 </td>
                 <td>
-                    <div class="sparkline-container" data-sparkline-cell="${stock.symbol}">
+                    <div class="sparkline-container" data-sparkline-cell="${stock.symbol}" style="cursor: pointer;" onclick="openKlineModal({ symbol: '${escapeHtml(stock.symbol)}', name: '${escapeHtml(stock.name)}', market: '${stock.market === 'TW' ? '台股' : (stock.market || '美股')}', buyAvgPrice: ${stock.entryPrice != null ? stock.entryPrice : 'null'}, ignitionDate: '${stock.entryDate || ''}' })" title="點擊展開動態 K 線圖">
                         <canvas class="sparkline-canvas" width="100" height="30"></canvas>
                     </div>
                 </td>
@@ -1253,6 +1254,7 @@ function renderTable() {
                     <span class="cell-actions">
                         <button class="btn-icon btn-sort" onclick="moveStock('${stock.symbol}', -1)" ${isFirst ? "disabled style='opacity: 0.3; cursor: not-allowed;'" : ""} title="上移">▲</button>
                         <button class="btn-icon btn-sort" onclick="moveStock('${stock.symbol}', 1)" ${isLast ? "disabled style='opacity: 0.3; cursor: not-allowed;'" : ""} title="下移">▼</button>
+                        ${klineBtnHtml}
                         ${chipBtnHtml}
                         <button class="btn-icon btn-dividend" onclick="openDividendModal('${stock.symbol}')" title="股利資訊">股利</button>
                         <button class="btn-icon" onclick="openEditModal('${stock.symbol}')" title="編輯">✏️</button>
@@ -2751,7 +2753,14 @@ function createAccumCardHtml(item) {
         : '';
 
     return `
-        <div class="chip-card glassmorphism">
+        <div class="chip-card glassmorphism" 
+            data-kline-symbol="${item.symbol}" 
+            data-kline-name="${item.stock_name}" 
+            data-kline-market="${item.market || '上市'}" 
+            data-kline-cost="${item.buy_avg_price || ''}" 
+            data-kline-ign="${item.ignition_date || ''}" 
+            data-kline-broker="${item.broker_name || ''}" 
+            data-kline-amt="${item.net_amt_yi || ''}">
             <div class="chip-card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
                 <div style="display: flex; align-items: center; gap: 6px;">
                     <span class="chip-symbol">${item.symbol}</span>
@@ -2761,7 +2770,7 @@ function createAccumCardHtml(item) {
                 <div style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
                     ${shortRatioBadge}
                     ${tdccBadge}
-                    <div class="chip-persona-badge">${item.persona_tag || "波段主力"}</div>
+                    <div class="chip-persona-badge">${item.persona_tag || "波段主力"}</div><button class="btn-open-kline" title="查看動態日 K 線">📈 K線</button>
                 </div>
             </div>
 
@@ -3102,3 +3111,482 @@ async function loadChipDerivativesData(signalType = "ALL") {
     }
 }
 
+
+
+
+// ==========================================================================
+// TradingView 動態 K 線圖 ＋ 懸浮籌碼 HUD 模組 (Lightweight Charts 4.x)
+// ==========================================================================
+
+let activeKlineChart = null;
+let activeCandleSeries = null;
+let activeVolumeSeries = null;
+let activeMa20Series = null;
+let activeMa60Series = null;
+let activeMa250Series = null;
+let currentKlineParams = {
+    symbol: "",
+    name: "",
+    market: "",
+    buyAvgPrice: null,
+    ignitionDate: null,
+    brokerName: "",
+    netAmtYi: null,
+    period: "1y"
+};
+let cachedCandlesData = [];
+
+// 輔助函式：計算簡單移動平均線 (SMA)
+function calculateSMA(data, count) {
+    const avg = function(vals) {
+        let sum = 0;
+        for (let i = 0; i < vals.length; i++) sum += vals[i];
+        return sum / vals.length;
+    };
+    const result = [];
+    for (let i = count - 1, len = data.length; i < len; i++) {
+        const valSlice = [];
+        for (let j = 0; j < count; j++) {
+            valSlice.push(data[i - j].close);
+        }
+        result.push({
+            time: data[i].time,
+            value: Number(avg(valSlice).toFixed(2))
+        });
+    }
+    return result;
+}
+
+// 格式化成交量顯示 (張數)
+function formatVolumeShares(vol) {
+    if (!vol || vol <= 0) return "--";
+    const sheets = Math.round(vol / 1000);
+    if (sheets >= 10000) {
+        return (sheets / 10000).toFixed(1) + " 萬張";
+    }
+    return sheets.toLocaleString() + " 張";
+}
+
+// 更新頂部 HUD 數值
+function updateKlineHud(dataPoint, lastClose) {
+    if (!dataPoint) return;
+    const hudDate = document.getElementById("hudDate");
+    const hudOpen = document.getElementById("hudOpen");
+    const hudHigh = document.getElementById("hudHigh");
+    const hudLow = document.getElementById("hudLow");
+    const hudClose = document.getElementById("hudClose");
+    const hudVol = document.getElementById("hudVol");
+    const hudMA20 = document.getElementById("hudMA20");
+    const hudMA60 = document.getElementById("hudMA60");
+    const hudMA250 = document.getElementById("hudMA250");
+    const hudCost = document.getElementById("hudCost");
+    const hudDev = document.getElementById("hudDev");
+
+    if (hudDate) hudDate.textContent = dataPoint.time || "--";
+    if (hudOpen) hudOpen.textContent = Number(dataPoint.open || 0).toFixed(2);
+    if (hudHigh) hudHigh.textContent = Number(dataPoint.high || 0).toFixed(2);
+    if (hudLow) hudLow.textContent = Number(dataPoint.low || 0).toFixed(2);
+    
+    if (hudClose) {
+        const cVal = Number(dataPoint.close || 0);
+        hudClose.textContent = cVal.toFixed(2);
+        hudClose.className = "hud-val " + (cVal >= (dataPoint.open || cVal) ? "up" : "down");
+    }
+
+    if (hudVol) hudVol.textContent = formatVolumeShares(dataPoint.volume);
+
+    // 均線即時計算
+    if (hudMA20) hudMA20.textContent = dataPoint.ma20 ? Number(dataPoint.ma20).toFixed(2) : "--";
+    if (hudMA60) hudMA60.textContent = dataPoint.ma60 ? Number(dataPoint.ma60).toFixed(2) : "--";
+    if (hudMA250) hudMA250.textContent = dataPoint.ma250 ? Number(dataPoint.ma250).toFixed(2) : "--";
+
+    // 主力成本偏離計算
+    if (currentKlineParams.buyAvgPrice && currentKlineParams.buyAvgPrice > 0) {
+        if (hudCost) hudCost.textContent = "$" + Number(currentKlineParams.buyAvgPrice).toFixed(2);
+        if (hudDev && dataPoint.close) {
+            const devPct = ((dataPoint.close - currentKlineParams.buyAvgPrice) / currentKlineParams.buyAvgPrice) * 100;
+            const sign = devPct >= 0 ? "+" : "";
+            hudDev.textContent = sign + devPct.toFixed(1) + "%";
+            hudDev.className = "hud-val " + (devPct >= 0 ? "up" : "down");
+        }
+    } else {
+        if (hudCost) hudCost.textContent = "未指定";
+        if (hudDev) hudDev.textContent = "--";
+    }
+}
+
+// 核心函式：開啟 K 線動態彈窗
+async function openKlineModal(params) {
+    if (typeof params === "string") {
+        params = { symbol: params };
+    }
+
+    currentKlineParams = {
+        symbol: params.symbol || "2887",
+        name: params.name || params.stock_name || "",
+        market: params.market || "上市",
+        buyAvgPrice: params.buyAvgPrice != null ? Number(params.buyAvgPrice) : (params.buy_avg_price != null ? Number(params.buy_avg_price) : null),
+        ignitionDate: params.ignitionDate || params.ignition_date || null,
+        brokerName: params.brokerName || params.broker_name || "",
+        netAmtYi: params.netAmtYi != null ? Number(params.netAmtYi) : (params.net_amt_yi != null ? Number(params.net_amt_yi) : null),
+        period: currentKlineParams.period || "1y"
+    };
+
+    const overlay = document.getElementById("klineModalOverlay");
+    const symbolEl = document.getElementById("klineStockSymbol");
+    const nameEl = document.getElementById("klineStockName");
+    const marketEl = document.getElementById("klineMarketBadge");
+    const chipSummaryEl = document.getElementById("klineChipSummary");
+    const spinner = document.getElementById("klineLoadingSpinner");
+
+    if (symbolEl) symbolEl.textContent = currentKlineParams.symbol;
+    if (nameEl) nameEl.textContent = currentKlineParams.name || currentKlineParams.symbol;
+    if (marketEl) {
+        marketEl.textContent = currentKlineParams.market;
+        marketEl.className = "chip-market-badge " + (currentKlineParams.market.includes("櫃") ? "tpex" : "twse");
+    }
+
+    // 底部籌碼情報
+    if (chipSummaryEl) {
+        let summaryHtml = "";
+        if (currentKlineParams.brokerName) {
+            summaryHtml += `<span class="kline-chip-tag">主力分點: <b>${escapeHtml(currentKlineParams.brokerName)}</b></span>`;
+            if (currentKlineParams.buyAvgPrice) {
+                summaryHtml += `<span class="kline-chip-tag">主力建倉成本: <b style="color: #fbbf24;">$${currentKlineParams.buyAvgPrice.toFixed(2)}</b></span>`;
+            }
+            if (currentKlineParams.netAmtYi) {
+                summaryHtml += `<span class="kline-chip-tag">波段淨買超: <b style="color: #ef4444;">+${currentKlineParams.netAmtYi.toFixed(2)} 億</b></span>`;
+            }
+            if (currentKlineParams.ignitionDate) {
+                summaryHtml += `<span class="kline-chip-tag">點火起算日: <b style="color: #38bdf8;">${currentKlineParams.ignitionDate} 🚀</b></span>`;
+            }
+        } else {
+            // 來自個人追蹤清單
+            if (currentKlineParams.buyAvgPrice) {
+                summaryHtml += `<span class="kline-chip-tag">個人建倉成本: <b style="color: #fbbf24;">$${currentKlineParams.buyAvgPrice.toFixed(2)}</b></span>`;
+            }
+            if (currentKlineParams.ignitionDate) {
+                summaryHtml += `<span class="kline-chip-tag">買入日期: <b style="color: #38bdf8;">${currentKlineParams.ignitionDate} 🎯</b></span>`;
+            }
+            summaryHtml += `<span class="kline-chip-tag" style="color: #a5b4fc;">自選追蹤標的</span>`;
+        }
+        chipSummaryEl.innerHTML = summaryHtml || `<span style="color: #64748b;">技術 K 線動態分析</span>`;
+    }
+
+    if (spinner) spinner.classList.remove("hide");
+    if (overlay) overlay.classList.add("show");
+
+    // 載入日 K 資料並渲染圖表
+    await loadAndRenderKlineData(currentKlineParams.symbol, currentKlineParams.period);
+}
+
+// 關閉 K 線彈窗
+function closeKlineModal() {
+    const overlay = document.getElementById("klineModalOverlay");
+    if (overlay) overlay.classList.remove("show");
+    if (activeKlineChart) {
+        try {
+            activeKlineChart.remove();
+        } catch (e) {}
+        activeKlineChart = null;
+    }
+}
+
+// 請求 API 並在 TradingView 圖表上繪製
+async function loadAndRenderKlineData(symbol, period) {
+    const container = document.getElementById("klineChartContainer");
+    const spinner = document.getElementById("klineLoadingSpinner");
+    if (!container) return;
+
+    // 清理舊圖表
+    if (activeKlineChart) {
+        try {
+            activeKlineChart.remove();
+        } catch (e) {}
+        activeKlineChart = null;
+    }
+    container.innerHTML = "";
+
+    try {
+        const resp = await fetch(`/api/kline/${symbol}?period=${period}`);
+        const result = await resp.json();
+
+        if (!result || !result.success || !result.candles || result.candles.length === 0) {
+            throw new Error(result.error || "查無 K 線數據");
+        }
+
+        cachedCandlesData = result.candles;
+
+        // 計算均線數據
+        const ma20Map = {};
+        const ma60Map = {};
+        const ma250Map = {};
+        calculateSMA(cachedCandlesData, 20).forEach(d => ma20Map[d.time] = d.value);
+        calculateSMA(cachedCandlesData, 60).forEach(d => ma60Map[d.time] = d.value);
+        calculateSMA(cachedCandlesData, 250).forEach(d => ma250Map[d.time] = d.value);
+
+        // 將均線值寫入 cachedCandlesData
+        cachedCandlesData.forEach(c => {
+            c.ma20 = ma20Map[c.time] || null;
+            c.ma60 = ma60Map[c.time] || null;
+            c.ma250 = ma250Map[c.time] || null;
+        });
+
+        // 建立 TradingView Lightweight Chart 實例
+        activeKlineChart = LightweightCharts.createChart(container, {
+            width: container.clientWidth,
+            height: container.clientHeight || 480,
+            layout: {
+                background: { color: '#0b0f19' },
+                textColor: '#94a3b8',
+                fontSize: 11,
+                fontFamily: "'Inter', -apple-system, sans-serif"
+            },
+            grid: {
+                vertLines: { color: 'rgba(255, 255, 255, 0.04)' },
+                horzLines: { color: 'rgba(255, 255, 255, 0.04)' }
+            },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Normal,
+                vertLine: {
+                    color: '#38bdf8',
+                    width: 1,
+                    style: LightweightCharts.LineStyle.Dashed,
+                    labelBackgroundColor: '#0284c7'
+                },
+                horzLine: {
+                    color: '#38bdf8',
+                    width: 1,
+                    style: LightweightCharts.LineStyle.Dashed,
+                    labelBackgroundColor: '#0284c7'
+                }
+            },
+            timeScale: {
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+                timeVisible: true,
+                secondsVisible: false
+            },
+            rightPriceScale: {
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+                scaleMargins: {
+                    top: 0.1,
+                    bottom: 0.25
+                }
+            }
+        });
+
+        // 1. Candlestick Series (台股配色: 漲紅跌綠)
+        activeCandleSeries = activeKlineChart.addCandlestickSeries({
+            upColor: '#ef4444',
+            downColor: '#22c55e',
+            borderUpColor: '#ef4444',
+            borderDownColor: '#22c55e',
+            wickUpColor: '#ef4444',
+            wickDownColor: '#22c55e'
+        });
+        activeCandleSeries.setData(cachedCandlesData);
+
+        // 2. Volume Series (底部成交量直方圖)
+        activeVolumeSeries = activeKlineChart.addHistogramSeries({
+            priceFormat: { type: 'volume' },
+            priceScaleId: '',
+            scaleMargins: {
+                top: 0.8,
+                bottom: 0
+            }
+        });
+        const volumeData = cachedCandlesData.map(d => ({
+            time: d.time,
+            value: d.volume,
+            color: d.close >= d.open ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 197, 94, 0.35)'
+        }));
+        activeVolumeSeries.setData(volumeData);
+
+        // 3. 均線系列
+        // MA20 黃色
+        const ma20Data = calculateSMA(cachedCandlesData, 20);
+        if (ma20Data.length > 0) {
+            activeMa20Series = activeKlineChart.addLineSeries({
+                color: '#eab308',
+                lineWidth: 1,
+                priceLineVisible: false
+            });
+            activeMa20Series.setData(ma20Data);
+        }
+
+        // MA60 綠色
+        const ma60Data = calculateSMA(cachedCandlesData, 60);
+        if (ma60Data.length > 0) {
+            activeMa60Series = activeKlineChart.addLineSeries({
+                color: '#10b981',
+                lineWidth: 1.5,
+                priceLineVisible: false
+            });
+            activeMa60Series.setData(ma60Data);
+        }
+
+        // MA250 紫色 (年線)
+        const ma250Data = calculateSMA(cachedCandlesData, 250);
+        if (ma250Data.length > 0) {
+            activeMa250Series = activeKlineChart.addLineSeries({
+                color: '#a855f7',
+                lineWidth: 1.5,
+                priceLineVisible: false
+            });
+            activeMa250Series.setData(ma250Data);
+        }
+
+        // 4. 🌟 主力 / 個人建倉成本防守線 (金色水平虛線)
+        if (currentKlineParams.buyAvgPrice && currentKlineParams.buyAvgPrice > 0) {
+            const costTitle = currentKlineParams.brokerName
+                ? ('主力成本 $' + currentKlineParams.buyAvgPrice.toFixed(1))
+                : ('個人成本 $' + currentKlineParams.buyAvgPrice.toFixed(1));
+            activeCandleSeries.createPriceLine({
+                price: currentKlineParams.buyAvgPrice,
+                color: '#f59e0b',
+                lineWidth: 2,
+                lineStyle: LightweightCharts.LineStyle.Dashed,
+                axisLabelVisible: true,
+                title: costTitle
+            });
+        }
+
+        // 5. 🚀 標記起算日 / 個人買入建倉日
+        if (currentKlineParams.ignitionDate) {
+            const hasIgnDate = cachedCandlesData.some(c => c.time === currentKlineParams.ignitionDate);
+            if (hasIgnDate) {
+                const markerText = currentKlineParams.brokerName ? '🚀 主力點火起算' : '🎯 個人建倉日';
+                activeCandleSeries.setMarkers([
+                    {
+                        time: currentKlineParams.ignitionDate,
+                        position: 'belowBar',
+                        color: '#f59e0b',
+                        shape: 'arrowUp',
+                        text: markerText
+                    }
+                ]);
+            }
+        }
+
+        // 6. 🎯 滑鼠懸停 (Mouse Over / crosshairMove) 即時連動 HUD
+        activeKlineChart.subscribeCrosshairMove(param => {
+            if (!param || !param.time || !param.seriesData) {
+                // 游標離開圖表時，恢復顯示最新最後一根 K 線
+                if (cachedCandlesData.length > 0) {
+                    const lastD = cachedCandlesData[cachedCandlesData.length - 1];
+                    updateKlineHud(lastD);
+                }
+                return;
+            }
+            const cData = param.seriesData.get(activeCandleSeries);
+            if (cData) {
+                const fullItem = cachedCandlesData.find(c => c.time === param.time) || cData;
+                updateKlineHud(fullItem);
+            }
+        });
+
+        // 預設更新最後一根 K 線數值至 HUD
+        const lastBar = cachedCandlesData[cachedCandlesData.length - 1];
+        updateKlineHud(lastBar);
+
+        // 頂部價格與漲跌幅更新
+        const curPriceEl = document.getElementById("klineCurPrice");
+        const curChangeEl = document.getElementById("klineCurChange");
+        if (curPriceEl && lastBar) {
+            curPriceEl.textContent = "$" + lastBar.close.toFixed(2);
+            if (cachedCandlesData.length >= 2) {
+                const prevBar = cachedCandlesData[cachedCandlesData.length - 2];
+                const diff = lastBar.close - prevBar.close;
+                const diffPct = (diff / prevBar.close) * 100;
+                const sign = diff >= 0 ? "+" : "";
+                curChangeEl.textContent = `${sign}${diff.toFixed(2)} (${sign}${diffPct.toFixed(2)}%)`;
+                curChangeEl.className = "kline-cur-change " + (diff >= 0 ? "up" : "down");
+            }
+        }
+
+        // 自動充滿視窗
+        activeKlineChart.timeScale().fitContent();
+
+    } catch (err) {
+        console.error("載入 K 線圖失敗:", err);
+        container.innerHTML = `<div style="text-align:center; padding-top: 150px; color: #ef4444; font-weight: 600;">
+            ⚠️ 無法載入【${symbol}】K 線圖表 (${err.message})
+        </div>`;
+    } finally {
+        if (spinner) spinner.classList.add("hide");
+    }
+}
+
+// 監聽器與事件綁定初始化
+function setupKlineEventListeners() {
+    const overlay = document.getElementById("klineModalOverlay");
+    const closeBtn = document.getElementById("klineModalClose");
+    const cancelBtn = document.getElementById("klineModalCancel");
+
+    if (closeBtn) closeBtn.addEventListener("click", closeKlineModal);
+    if (cancelBtn) cancelBtn.addEventListener("click", closeKlineModal);
+
+    if (overlay) {
+        overlay.addEventListener("click", e => {
+            if (e.target === overlay) closeKlineModal();
+        });
+    }
+
+    document.addEventListener("keydown", e => {
+        if (e.key === "Escape") closeKlineModal();
+    });
+
+    // 週期切換膠囊按鈕
+    const periodBtns = document.querySelectorAll(".kline-period-btn");
+    periodBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            periodBtns.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            const newPeriod = btn.getAttribute("data-period");
+            currentKlineParams.period = newPeriod;
+            loadAndRenderKlineData(currentKlineParams.symbol, newPeriod);
+        });
+    });
+
+    // 視窗 Resize 自適應
+    window.addEventListener("resize", () => {
+        const container = document.getElementById("klineChartContainer");
+        if (activeKlineChart && container) {
+            activeKlineChart.applyOptions({
+                width: container.clientWidth,
+                height: container.clientHeight
+            });
+        }
+    });
+
+    // 全域事件代理：點擊任何個股卡片或 K 線按鈕即打開 K 線
+    document.addEventListener("click", e => {
+        const klineTrigger = e.target.closest("[data-kline-symbol]");
+        if (klineTrigger) {
+            e.stopPropagation();
+            const symbol = klineTrigger.getAttribute("data-kline-symbol");
+            const name = klineTrigger.getAttribute("data-kline-name") || "";
+            const market = klineTrigger.getAttribute("data-kline-market") || "上市";
+            const cost = klineTrigger.getAttribute("data-kline-cost");
+            const ign = klineTrigger.getAttribute("data-kline-ign");
+            const broker = klineTrigger.getAttribute("data-kline-broker") || "";
+            const amt = klineTrigger.getAttribute("data-kline-amt");
+            openKlineModal({
+                symbol: symbol,
+                name: name,
+                market: market,
+                buyAvgPrice: cost ? parseFloat(cost) : null,
+                ignitionDate: ign || null,
+                brokerName: broker,
+                netAmtYi: amt ? parseFloat(amt) : null
+            });
+        }
+    });
+}
+
+// 於 DOMContentLoaded 初始化
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", setupKlineEventListeners);
+} else {
+    setupKlineEventListeners();
+}
