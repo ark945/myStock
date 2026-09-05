@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260905_kline_v2">
+    <link rel="stylesheet" href="/static/style.css?v=20260905_kline_v3">
 </head>
 <body>
     <!-- 背景粒子裝飾 -->
@@ -614,12 +614,24 @@
                     </div>
                 </div>
 
-                <!-- 週期切換膠囊按鈕 -->
-                <div class="kline-period-pills">
-                    <button class="kline-period-btn" data-period="3mo">3個月 (60D)</button>
-                    <button class="kline-period-btn" data-period="6mo">半年 (120D)</button>
-                    <button class="kline-period-btn active" data-period="1y">1年 (250D) ⭐</button>
-                    <button class="kline-period-btn" data-period="2y">2年</button>
+                <!-- 頂部控制列：頻率切換 (日K/週K/月K) 與 週期跨度切換 (1M~全部) -->
+                <div class="kline-controls-cluster">
+                    <div class="kline-interval-pills" id="klineIntervalPills">
+                        <button class="kline-interval-btn active" data-interval="1d" title="日 K 線">日 K</button>
+                        <button class="kline-interval-btn" data-interval="1wk" title="週 K 線">週 K</button>
+                        <button class="kline-interval-btn" data-interval="1mo" title="月 K 線 (大趨勢月線)">月 K (月線)</button>
+                    </div>
+                    <div class="kline-period-pills" id="klinePeriodPills">
+                        <button class="kline-period-btn" data-period="1mo" title="近 1 個月">1個月</button>
+                        <button class="kline-period-btn" data-period="2mo" title="近 2 個月">2個月</button>
+                        <button class="kline-period-btn" data-period="3mo" title="近 3 個月 (60D)">3個月</button>
+                        <button class="kline-period-btn" data-period="6mo" title="近 6 個月 (半年)">半年</button>
+                        <button class="kline-period-btn active" data-period="1y" title="近 12 個月 (1年)">1年 ⭐</button>
+                        <button class="kline-period-btn" data-period="2y" title="近 24 個月 (2年)">2年</button>
+                        <button class="kline-period-btn" data-period="3y" title="近 36 個月 (3年)">3年</button>
+                        <button class="kline-period-btn" data-period="5y" title="近 60 個月 (5年)">5年</button>
+                        <button class="kline-period-btn" data-period="max" title="歷史所有完整走勢">全部</button>
+                    </div>
                 </div>
 
                 <button class="modal-close kline-modal-close" id="klineModalClose" title="關閉視窗">&times;</button>
@@ -634,9 +646,10 @@
                 <div class="hud-item"><span class="hud-label">收</span><span class="hud-val" id="hudClose">--</span></div>
                 <div class="hud-item"><span class="hud-label">量</span><span class="hud-val" id="hudVol">--</span></div>
                 <div class="hud-divider"></div>
-                <div class="hud-item ma20"><span class="hud-dot" style="background:#eab308;"></span><span class="hud-label">MA20</span><span class="hud-val" id="hudMA20">--</span></div>
-                <div class="hud-item ma60"><span class="hud-dot" style="background:#10b981;"></span><span class="hud-label">MA60</span><span class="hud-val" id="hudMA60">--</span></div>
-                <div class="hud-item ma250"><span class="hud-dot" style="background:#a855f7;"></span><span class="hud-label">MA250</span><span class="hud-val" id="hudMA250">--</span></div>
+                <div class="hud-item ma-item-1"><span class="hud-dot" style="background:#eab308;"></span><span class="hud-label" id="hudMaLabel1">MA20(月)</span><span class="hud-val" id="hudMA1">--</span></div>
+                <div class="hud-item ma-item-2"><span class="hud-dot" style="background:#10b981;"></span><span class="hud-label" id="hudMaLabel2">MA60(季)</span><span class="hud-val" id="hudMA2">--</span></div>
+                <div class="hud-item ma-item-3"><span class="hud-dot" style="background:#06b6d4;"></span><span class="hud-label" id="hudMaLabel3">MA120(半年)</span><span class="hud-val" id="hudMA3">--</span></div>
+                <div class="hud-item ma-item-4"><span class="hud-dot" style="background:#a855f7;"></span><span class="hud-label" id="hudMaLabel4">MA250(年)</span><span class="hud-val" id="hudMA4">--</span></div>
                 <div class="hud-divider"></div>
                 <div class="hud-item cost"><span class="hud-dot" style="background:#f59e0b;"></span><span class="hud-label">主力成本</span><span class="hud-val highlight-gold" id="hudCost">--</span></div>
                 <div class="hud-item dev"><span class="hud-label">成本偏離</span><span class="hud-val" id="hudDev">--</span></div>
@@ -665,6 +678,6 @@
     <!-- 引入 TradingView Lightweight Charts 獨立生產版 -->
     <script src="https://unpkg.com/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js"></script>
 
-    <script src="/static/app.js?v=20260905_kline_v2"></script>
+    <script src="/static/app.js?v=20260905_kline_v3"></script>
 </body>
 </html>

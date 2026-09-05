@@ -3116,14 +3116,17 @@ async function loadChipDerivativesData(signalType = "ALL") {
 
 // ==========================================================================
 // TradingView 動態 K 線圖 ＋ 懸浮籌碼 HUD 模組 (Lightweight Charts 4.x)
+// 支援日K/週K/月K多頻率、豐富月份與年份跨度、個人成本線與主力點火標記
 // ==========================================================================
 
 let activeKlineChart = null;
 let activeCandleSeries = null;
 let activeVolumeSeries = null;
-let activeMa20Series = null;
-let activeMa60Series = null;
-let activeMa250Series = null;
+let activeMa1Series = null;
+let activeMa2Series = null;
+let activeMa3Series = null;
+let activeMa4Series = null;
+
 let currentKlineParams = {
     symbol: "",
     name: "",
@@ -3132,9 +3135,12 @@ let currentKlineParams = {
     ignitionDate: null,
     brokerName: "",
     netAmtYi: null,
-    period: "1y"
+    period: "1y",
+    interval: "1d"
 };
+
 let cachedCandlesData = [];
+let cachedMaLookup = { ma1: {}, ma2: {}, ma3: {}, ma4: {} };
 
 // 輔助函式：計算簡單移動平均線 (SMA)
 function calculateSMA(data, count) {
@@ -3157,18 +3163,20 @@ function calculateSMA(data, count) {
     return result;
 }
 
-// 格式化成交量顯示 (張數)
+// 格式化張數或股數
 function formatVolumeShares(vol) {
-    if (!vol || vol <= 0) return "--";
-    const sheets = Math.round(vol / 1000);
-    if (sheets >= 10000) {
-        return (sheets / 10000).toFixed(1) + " 萬張";
+    if (!vol && vol !== 0) return "--";
+    const shares = Number(vol);
+    if (shares >= 10000000) {
+        return (shares / 10000000).toFixed(1) + " 千萬";
+    } else if (shares >= 10000) {
+        return (shares / 1000).toFixed(1) + " 張";
     }
-    return sheets.toLocaleString() + " 張";
+    return shares.toLocaleString();
 }
 
-// 更新頂部 HUD 數值
-function updateKlineHud(dataPoint, lastClose) {
+// 懸浮看盤 HUD 數值即時更新
+function updateKlineHud(dataPoint) {
     if (!dataPoint) return;
     const hudDate = document.getElementById("hudDate");
     const hudOpen = document.getElementById("hudOpen");
@@ -3176,9 +3184,10 @@ function updateKlineHud(dataPoint, lastClose) {
     const hudLow = document.getElementById("hudLow");
     const hudClose = document.getElementById("hudClose");
     const hudVol = document.getElementById("hudVol");
-    const hudMA20 = document.getElementById("hudMA20");
-    const hudMA60 = document.getElementById("hudMA60");
-    const hudMA250 = document.getElementById("hudMA250");
+    const hudMA1 = document.getElementById("hudMA1");
+    const hudMA2 = document.getElementById("hudMA2");
+    const hudMA3 = document.getElementById("hudMA3");
+    const hudMA4 = document.getElementById("hudMA4");
     const hudCost = document.getElementById("hudCost");
     const hudDev = document.getElementById("hudDev");
 
@@ -3195,12 +3204,14 @@ function updateKlineHud(dataPoint, lastClose) {
 
     if (hudVol) hudVol.textContent = formatVolumeShares(dataPoint.volume);
 
-    // 均線即時計算
-    if (hudMA20) hudMA20.textContent = dataPoint.ma20 ? Number(dataPoint.ma20).toFixed(2) : "--";
-    if (hudMA60) hudMA60.textContent = dataPoint.ma60 ? Number(dataPoint.ma60).toFixed(2) : "--";
-    if (hudMA250) hudMA250.textContent = dataPoint.ma250 ? Number(dataPoint.ma250).toFixed(2) : "--";
+    // 均線即時數值更新
+    const t = dataPoint.time;
+    if (hudMA1) hudMA1.textContent = cachedMaLookup.ma1[t] ? Number(cachedMaLookup.ma1[t]).toFixed(2) : "--";
+    if (hudMA2) hudMA2.textContent = cachedMaLookup.ma2[t] ? Number(cachedMaLookup.ma2[t]).toFixed(2) : "--";
+    if (hudMA3) hudMA3.textContent = cachedMaLookup.ma3[t] ? Number(cachedMaLookup.ma3[t]).toFixed(2) : "--";
+    if (hudMA4) hudMA4.textContent = cachedMaLookup.ma4[t] ? Number(cachedMaLookup.ma4[t]).toFixed(2) : "--";
 
-    // 主力成本偏離計算
+    // 成本偏離計算
     if (currentKlineParams.buyAvgPrice && currentKlineParams.buyAvgPrice > 0) {
         if (hudCost) hudCost.textContent = "$" + Number(currentKlineParams.buyAvgPrice).toFixed(2);
         if (hudDev && dataPoint.close) {
@@ -3229,7 +3240,8 @@ async function openKlineModal(params) {
         ignitionDate: params.ignitionDate || params.ignition_date || null,
         brokerName: params.brokerName || params.broker_name || "",
         netAmtYi: params.netAmtYi != null ? Number(params.netAmtYi) : (params.net_amt_yi != null ? Number(params.net_amt_yi) : null),
-        period: currentKlineParams.period || "1y"
+        period: params.period || currentKlineParams.period || "1y",
+        interval: params.interval || currentKlineParams.interval || "1d"
     };
 
     const overlay = document.getElementById("klineModalOverlay");
@@ -3261,7 +3273,7 @@ async function openKlineModal(params) {
                 summaryHtml += `<span class="kline-chip-tag">點火起算日: <b style="color: #38bdf8;">${currentKlineParams.ignitionDate} 🚀</b></span>`;
             }
         } else {
-            // 來自個人追蹤清單
+            // 來自個人自選追蹤清單
             if (currentKlineParams.buyAvgPrice) {
                 summaryHtml += `<span class="kline-chip-tag">個人建倉成本: <b style="color: #fbbf24;">$${currentKlineParams.buyAvgPrice.toFixed(2)}</b></span>`;
             }
@@ -3273,11 +3285,19 @@ async function openKlineModal(params) {
         chipSummaryEl.innerHTML = summaryHtml || `<span style="color: #64748b;">技術 K 線動態分析</span>`;
     }
 
+    // 同步膠囊按鈕狀態
+    document.querySelectorAll(".kline-interval-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-interval") === currentKlineParams.interval);
+    });
+    document.querySelectorAll(".kline-period-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-period") === currentKlineParams.period);
+    });
+
     if (spinner) spinner.classList.remove("hide");
     if (overlay) overlay.classList.add("show");
 
-    // 載入日 K 資料並渲染圖表
-    await loadAndRenderKlineData(currentKlineParams.symbol, currentKlineParams.period);
+    // 載入日/週/月 K 資料並渲染圖表
+    await loadAndRenderKlineData(currentKlineParams.symbol, currentKlineParams.period, currentKlineParams.interval);
 }
 
 // 關閉 K 線彈窗
@@ -3293,7 +3313,10 @@ function closeKlineModal() {
 }
 
 // 請求 API 並在 TradingView 圖表上繪製
-async function loadAndRenderKlineData(symbol, period) {
+async function loadAndRenderKlineData(symbol, period, interval) {
+    interval = interval || "1d";
+    period = period || "1y";
+
     const container = document.getElementById("klineChartContainer");
     const spinner = document.getElementById("klineLoadingSpinner");
     if (!container) return;
@@ -3308,39 +3331,58 @@ async function loadAndRenderKlineData(symbol, period) {
     container.innerHTML = "";
 
     try {
-        const resp = await fetch(`/api/kline/${symbol}?period=${period}`);
-        const result = await resp.json();
-
-        if (!result || !result.success || !result.candles || result.candles.length === 0) {
-            throw new Error(result.error || "查無 K 線數據");
+        if (spinner) {
+            spinner.classList.remove("hide");
+            const spinnerText = spinner.querySelector("span");
+            if (spinnerText) {
+                const intervalName = interval === "1mo" ? "月 K 線 (月線)" : (interval === "1wk" ? "週 K 線" : "日 K 線");
+                spinnerText.textContent = `正在獲取 ${intervalName} 數據 (${period})...`;
+            }
         }
 
-        cachedCandlesData = result.candles;
+        const resp = await fetch(`/api/kline/${symbol}?period=${period}&interval=${interval}`);
+        const data = await resp.json();
 
-        // 計算均線數據
-        const ma20Map = {};
-        const ma60Map = {};
-        const ma250Map = {};
-        calculateSMA(cachedCandlesData, 20).forEach(d => ma20Map[d.time] = d.value);
-        calculateSMA(cachedCandlesData, 60).forEach(d => ma60Map[d.time] = d.value);
-        calculateSMA(cachedCandlesData, 250).forEach(d => ma250Map[d.time] = d.value);
+        if (spinner) spinner.classList.add("hide");
 
-        // 將均線值寫入 cachedCandlesData
-        cachedCandlesData.forEach(c => {
-            c.ma20 = ma20Map[c.time] || null;
-            c.ma60 = ma60Map[c.time] || null;
-            c.ma250 = ma250Map[c.time] || null;
-        });
+        if (!data.success || !data.candles || data.candles.length === 0) {
+            container.innerHTML = `<div style="text-align:center; padding-top: 150px; color: #94a3b8;">⚠️ 查無此標的之歷史 K 線資料</div>`;
+            return;
+        }
 
-        // 建立 TradingView Lightweight Chart 實例
+        cachedCandlesData = data.candles;
+
+        // 更新左上角當前價格與漲跌
+        const lastCandle = cachedCandlesData[cachedCandlesData.length - 1];
+        const prevCandle = cachedCandlesData.length > 1 ? cachedCandlesData[cachedCandlesData.length - 2] : null;
+        const curPriceEl = document.getElementById("klineCurPrice");
+        const curChangeEl = document.getElementById("klineCurChange");
+
+        if (curPriceEl && lastCandle) {
+            curPriceEl.textContent = "$" + lastCandle.close.toFixed(2);
+            if (prevCandle) {
+                const chg = lastCandle.close - prevCandle.close;
+                const chgPct = (chg / prevCandle.close) * 100;
+                const sign = chg >= 0 ? "+" : "";
+                curChangeEl.textContent = `${sign}${chg.toFixed(2)} (${sign}${chgPct.toFixed(2)}%)`;
+                curChangeEl.className = "kline-cur-change " + (chg >= 0 ? "up" : "down");
+            } else {
+                curChangeEl.textContent = "--";
+            }
+        }
+
+        // 建立 TradingView Lightweight Chart
+        const chartWidth = container.clientWidth || 920;
+        const chartHeight = container.clientHeight || 480;
+
         activeKlineChart = LightweightCharts.createChart(container, {
-            width: container.clientWidth,
-            height: container.clientHeight || 480,
+            width: chartWidth,
+            height: chartHeight,
             layout: {
-                background: { color: '#0b0f19' },
+                background: { color: 'transparent' },
                 textColor: '#94a3b8',
                 fontSize: 11,
-                fontFamily: "'Inter', -apple-system, sans-serif"
+                fontFamily: 'Inter, -apple-system, sans-serif'
             },
             grid: {
                 vertLines: { color: 'rgba(255, 255, 255, 0.04)' },
@@ -3361,24 +3403,26 @@ async function loadAndRenderKlineData(symbol, period) {
                     labelBackgroundColor: '#0284c7'
                 }
             },
-            timeScale: {
-                borderColor: 'rgba(255, 255, 255, 0.1)',
-                timeVisible: true,
-                secondsVisible: false
-            },
             rightPriceScale: {
-                borderColor: 'rgba(255, 255, 255, 0.1)',
+                borderColor: 'rgba(255, 255, 255, 0.08)',
+                autoScale: true,
                 scaleMargins: {
                     top: 0.1,
-                    bottom: 0.25
+                    bottom: 0.22
                 }
+            },
+            timeScale: {
+                borderColor: 'rgba(255, 255, 255, 0.08)',
+                timeVisible: false,
+                secondsVisible: false
             }
         });
 
-        // 1. Candlestick Series (台股配色: 漲紅跌綠)
+        // 1. Candlestick Series (紅漲綠跌 台股配色)
         activeCandleSeries = activeKlineChart.addCandlestickSeries({
             upColor: '#ef4444',
             downColor: '#22c55e',
+            borderVisible: true,
             borderUpColor: '#ef4444',
             borderDownColor: '#22c55e',
             wickUpColor: '#ef4444',
@@ -3402,39 +3446,66 @@ async function loadAndRenderKlineData(symbol, period) {
         }));
         activeVolumeSeries.setData(volumeData);
 
-        // 3. 均線系列
-        // MA20 黃色
-        const ma20Data = calculateSMA(cachedCandlesData, 20);
-        if (ma20Data.length > 0) {
-            activeMa20Series = activeKlineChart.addLineSeries({
-                color: '#eab308',
-                lineWidth: 1,
-                priceLineVisible: false
-            });
-            activeMa20Series.setData(ma20Data);
+        // 3. 均線系列依頻率動態計算
+        let maConfigs = [];
+        if (interval === "1mo") {
+            // 月K線均線：6月(半年線), 12月(年線), 24月(兩年線), 60月(五年線)
+            maConfigs = [
+                { count: 6, label: "MA6(半年)", color: "#eab308", width: 1 },
+                { count: 12, label: "MA12(年)", color: "#10b981", width: 1.5 },
+                { count: 24, label: "MA24(2年)", color: "#06b6d4", width: 1.5 },
+                { count: 60, label: "MA60(5年)", color: "#a855f7", width: 1.5 }
+            ];
+        } else if (interval === "1wk") {
+            // 週K線均線：5週(月線), 13週(季線), 26週(半年線), 52週(年線)
+            maConfigs = [
+                { count: 5, label: "MA5(月)", color: "#eab308", width: 1 },
+                { count: 13, label: "MA13(季)", color: "#10b981", width: 1.5 },
+                { count: 26, label: "MA26(半年)", color: "#06b6d4", width: 1.5 },
+                { count: 52, label: "MA52(年)", color: "#a855f7", width: 1.5 }
+            ];
+        } else {
+            // 日K線均線：20日(月線), 60日(季線), 120日(半年線), 250日(年線)
+            maConfigs = [
+                { count: 20, label: "MA20(月)", color: "#eab308", width: 1 },
+                { count: 60, label: "MA60(季)", color: "#10b981", width: 1.5 },
+                { count: 120, label: "MA120(半年)", color: "#06b6d4", width: 1.5 },
+                { count: 250, label: "MA250(年)", color: "#a855f7", width: 1.5 }
+            ];
         }
 
-        // MA60 綠色
-        const ma60Data = calculateSMA(cachedCandlesData, 60);
-        if (ma60Data.length > 0) {
-            activeMa60Series = activeKlineChart.addLineSeries({
-                color: '#10b981',
-                lineWidth: 1.5,
-                priceLineVisible: false
-            });
-            activeMa60Series.setData(ma60Data);
+        // 更新 HUD 標籤文字
+        for (let i = 1; i <= 4; i++) {
+            const lblEl = document.getElementById(`hudMaLabel${i}`);
+            if (lblEl && maConfigs[i - 1]) {
+                lblEl.textContent = maConfigs[i - 1].label;
+            }
         }
 
-        // MA250 紫色 (年線)
-        const ma250Data = calculateSMA(cachedCandlesData, 250);
-        if (ma250Data.length > 0) {
-            activeMa250Series = activeKlineChart.addLineSeries({
-                color: '#a855f7',
-                lineWidth: 1.5,
-                priceLineVisible: false
+        // 計算均線並儲存至快速索引快取
+        cachedMaLookup = { ma1: {}, ma2: {}, ma3: {}, ma4: {} };
+        const maSeriesSlots = [null, null, null, null];
+
+        maConfigs.forEach((cfg, idx) => {
+            const maData = calculateSMA(cachedCandlesData, cfg.count);
+            const lookupKey = `ma${idx + 1}`;
+            maData.forEach(pt => {
+                cachedMaLookup[lookupKey][pt.time] = pt.value;
             });
-            activeMa250Series.setData(ma250Data);
-        }
+            if (maData.length > 0) {
+                const s = activeKlineChart.addLineSeries({
+                    color: cfg.color,
+                    lineWidth: cfg.width,
+                    priceLineVisible: false
+                });
+                s.setData(maData);
+                maSeriesSlots[idx] = s;
+            }
+        });
+        activeMa1Series = maSeriesSlots[0];
+        activeMa2Series = maSeriesSlots[1];
+        activeMa3Series = maSeriesSlots[2];
+        activeMa4Series = maSeriesSlots[3];
 
         // 4. 🌟 主力 / 個人建倉成本防守線 (金色水平虛線)
         if (currentKlineParams.buyAvgPrice && currentKlineParams.buyAvgPrice > 0) {
@@ -3471,7 +3542,6 @@ async function loadAndRenderKlineData(symbol, period) {
         // 6. 🎯 滑鼠懸停 (Mouse Over / crosshairMove) 即時連動 HUD
         activeKlineChart.subscribeCrosshairMove(param => {
             if (!param || !param.time || !param.seriesData) {
-                // 游標離開圖表時，恢復顯示最新最後一根 K 線
                 if (cachedCandlesData.length > 0) {
                     const lastD = cachedCandlesData[cachedCandlesData.length - 1];
                     updateKlineHud(lastD);
@@ -3485,66 +3555,61 @@ async function loadAndRenderKlineData(symbol, period) {
             }
         });
 
-        // 預設更新最後一根 K 線數值至 HUD
-        const lastBar = cachedCandlesData[cachedCandlesData.length - 1];
-        updateKlineHud(lastBar);
-
-        // 頂部價格與漲跌幅更新
-        const curPriceEl = document.getElementById("klineCurPrice");
-        const curChangeEl = document.getElementById("klineCurChange");
-        if (curPriceEl && lastBar) {
-            curPriceEl.textContent = "$" + lastBar.close.toFixed(2);
-            if (cachedCandlesData.length >= 2) {
-                const prevBar = cachedCandlesData[cachedCandlesData.length - 2];
-                const diff = lastBar.close - prevBar.close;
-                const diffPct = (diff / prevBar.close) * 100;
-                const sign = diff >= 0 ? "+" : "";
-                curChangeEl.textContent = `${sign}${diff.toFixed(2)} (${sign}${diffPct.toFixed(2)}%)`;
-                curChangeEl.className = "kline-cur-change " + (diff >= 0 ? "up" : "down");
-            }
+        // 預設更新最後一根 K 線到 HUD
+        if (lastCandle) {
+            updateKlineHud(lastCandle);
         }
 
-        // 自動充滿視窗
+        // 自動充滿視圖
         activeKlineChart.timeScale().fitContent();
 
     } catch (err) {
         console.error("載入 K 線圖失敗:", err);
-        container.innerHTML = `<div style="text-align:center; padding-top: 150px; color: #ef4444; font-weight: 600;">
-            ⚠️ 無法載入【${symbol}】K 線圖表 (${err.message})
-        </div>`;
-    } finally {
-        if (spinner) spinner.classList.add("hide");
+        container.innerHTML = `<div style="text-align:center; padding-top: 150px; color: #ef4444; font-weight: 600;">⚠️ 載入 K 線發生異常，請重試</div>`;
     }
 }
 
-// 監聽器與事件綁定初始化
+// 綁定 K 線彈窗各項事件
 function setupKlineEventListeners() {
-    const overlay = document.getElementById("klineModalOverlay");
     const closeBtn = document.getElementById("klineModalClose");
     const cancelBtn = document.getElementById("klineModalCancel");
+    const overlay = document.getElementById("klineModalOverlay");
 
     if (closeBtn) closeBtn.addEventListener("click", closeKlineModal);
     if (cancelBtn) cancelBtn.addEventListener("click", closeKlineModal);
-
     if (overlay) {
         overlay.addEventListener("click", e => {
             if (e.target === overlay) closeKlineModal();
         });
     }
 
-    document.addEventListener("keydown", e => {
-        if (e.key === "Escape") closeKlineModal();
+    // 頻率切換按鈕 (日K / 週K / 月K)
+    document.querySelectorAll(".kline-interval-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll(".kline-interval-btn").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            const newInv = btn.getAttribute("data-interval") || "1d";
+            currentKlineParams.interval = newInv;
+
+            // 切換到月K時，如果當前週期太短（例如 1mo, 2mo, 3mo, 6mo），自動推薦切換至 5y 展現壯麗長線大格局
+            if (newInv === "1mo" && ["1mo", "2mo", "3mo", "6mo"].includes(currentKlineParams.period)) {
+                currentKlineParams.period = "5y";
+                document.querySelectorAll(".kline-period-btn").forEach(pBtn => {
+                    pBtn.classList.toggle("active", pBtn.getAttribute("data-period") === "5y");
+                });
+            }
+
+            loadAndRenderKlineData(currentKlineParams.symbol, currentKlineParams.period, currentKlineParams.interval);
+        });
     });
 
-    // 週期切換膠囊按鈕
-    const periodBtns = document.querySelectorAll(".kline-period-btn");
-    periodBtns.forEach(btn => {
+    // 週期跨度切換按鈕 (1個月 ~ 全部)
+    document.querySelectorAll(".kline-period-btn").forEach(btn => {
         btn.addEventListener("click", () => {
-            periodBtns.forEach(b => b.classList.remove("active"));
+            document.querySelectorAll(".kline-period-btn").forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
-            const newPeriod = btn.getAttribute("data-period");
-            currentKlineParams.period = newPeriod;
-            loadAndRenderKlineData(currentKlineParams.symbol, newPeriod);
+            currentKlineParams.period = btn.getAttribute("data-period") || "1y";
+            loadAndRenderKlineData(currentKlineParams.symbol, currentKlineParams.period, currentKlineParams.interval);
         });
     });
 
@@ -3559,7 +3624,7 @@ function setupKlineEventListeners() {
         }
     });
 
-    // 全域事件代理：點擊任何個股卡片或 K 線按鈕即打開 K 線
+    // 全站點擊任何標有 data-kline-symbol 屬性之卡片或按鈕開啟 K 線
     document.addEventListener("click", e => {
         const klineTrigger = e.target.closest("[data-kline-symbol]");
         if (klineTrigger) {
