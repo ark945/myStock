@@ -1822,10 +1822,10 @@ async def get_chip_derivatives(date: Optional[str] = None, signal_type: Optional
 _kline_cache = {}
 
 @app.get("/api/kline/{symbol}")
-async def get_stock_kline(symbol: str, period: str = "1y"):
-    """取得指定股票的歷史日 K 線 (支援上市 .TW / 上櫃 .TWO / 美股)"""
+async def get_stock_kline(symbol: str, period: str = "1y", interval: str = "1d"):
+    """取得個股歷史 K 線 (支援上市 .TW / 上櫃 .TWO / 美股，日K/週K/月K，與豐富跨度)"""
     clean_sym = symbol.strip().upper()
-    cache_key = f"{clean_sym}_{period}"
+    cache_key = f"{clean_sym}_{period}_{interval}"
     now_ts = time.time()
     
     if cache_key in _kline_cache:
@@ -1850,8 +1850,8 @@ async def get_stock_kline(symbol: str, period: str = "1y"):
         for yf_sym in candidates:
             try:
                 t = yf.Ticker(yf_sym)
-                df = t.history(period=period)
-                if df is not None and not df.empty and len(df) > 5:
+                df = t.history(period=period, interval=interval)
+                if df is not None and not df.empty and len(df) >= 1:
                     break
             except Exception:
                 continue
@@ -1866,7 +1866,7 @@ async def get_stock_kline(symbol: str, period: str = "1y"):
             h = round(float(row["High"]), 2)
             l = round(float(row["Low"]), 2)
             c = round(float(row["Close"]), 2)
-            v = int(row["Volume"])
+            v = int(row.get("Volume", 0) or 0)
             if o > 0 and c > 0:
                 candles.append({
                     "time": d_str,
@@ -1877,7 +1877,7 @@ async def get_stock_kline(symbol: str, period: str = "1y"):
                     "volume": v
                 })
 
-        return {"success": True, "symbol": clean_sym, "period": period, "candles": candles}
+        return {"success": True, "symbol": clean_sym, "period": period, "interval": interval, "candles": candles}
 
     res = await asyncio.to_thread(_fetch)
     if res.get("success"):
