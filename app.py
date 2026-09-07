@@ -1815,7 +1815,7 @@ async def get_chip_derivatives(date: Optional[str] = None, signal_type: Optional
 
 
 @app.get("/api/chip/whale-matrix")
-async def get_chip_whale_matrix(date: Optional[str] = None, top_n: int = 5):
+async def get_chip_whale_matrix(date: Optional[str] = None, top_n: int = 10):
     """取得指定日期的權值巨鯨 5d / 10d / 20d 籌碼追蹤矩陣"""
     try:
         if not date:
