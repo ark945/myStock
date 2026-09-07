@@ -3538,7 +3538,8 @@ tr.dragging {
    ⚡ 尾盤 VWAP 標的聚合 Group By 與席位手風琴樣式
    ========================================================= */
 
-.chip-vwap-view-pill {
+.chip-vwap-view-pill,
+.chip-inst-view-pill {
     background: rgba(30, 41, 59, 0.7);
     border: 1px solid rgba(255, 255, 255, 0.12);
     color: #94a3b8;
@@ -3550,13 +3551,15 @@ tr.dragging {
     transition: all 0.2s ease;
 }
 
-.chip-vwap-view-pill:hover {
+.chip-vwap-view-pill:hover,
+.chip-inst-view-pill:hover {
     background: rgba(56, 189, 248, 0.15);
     color: #38bdf8;
     border-color: rgba(56, 189, 248, 0.35);
 }
 
-.chip-vwap-view-pill.active {
+.chip-vwap-view-pill.active,
+.chip-inst-view-pill.active {
     background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
     color: #ffffff;
     border-color: #38bdf8;

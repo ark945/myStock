@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260907_whale_top10_v3">
+    <link rel="stylesheet" href="/static/style.css?v=20260907_groupby_inst_v4">
 </head>
 <body>
     <!-- 背景粒子裝飾 -->
@@ -406,10 +406,20 @@
 
             <!-- 4. 外資與本土法人部面板 -->
             <div id="chip-subtab-institutions" class="chip-subcontent">
-                <div class="chip-inst-filter">
+                <div class="chip-inst-filter" style="margin-bottom: 12px;">
                     <button class="chip-inst-pill active" data-cat="ALL">全部機構席位</button>
                     <button class="chip-inst-pill" data-cat="FOREIGN">🌐 外資席位 (大摩/高盛/美林)</button>
                     <button class="chip-inst-pill" data-cat="DOMESTIC_INST">🏢 本土法人部/總公司</button>
+                </div>
+                <!-- 視圖切換工具列 (聚合分組 vs 平鋪) -->
+                <div class="chip-view-toolbar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+                    <div class="chip-view-pills" style="display: flex; gap: 8px;">
+                        <button class="chip-inst-view-pill active" data-view="group">📦 依標的物聚合折疊 (推薦)</button>
+                        <button class="chip-inst-view-pill" data-view="flat">📋 攤平顯示全部席位</button>
+                    </div>
+                    <div class="chip-inst-search-wrap">
+                        <input type="text" id="chipInstSearch" class="chip-search-input" placeholder="🔍 搜尋標的代號或名稱..." style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; color: #f8fafc; padding: 6px 12px; font-size: 13px; width: 220px; outline: none;">
+                    </div>
                 </div>
                 <div class="chip-cards-grid" id="chipInstGrid">
                     <!-- 動態載入法人卡片 -->
@@ -698,6 +708,6 @@
     <!-- 引入 TradingView Lightweight Charts 獨立生產版 -->
     <script src="https://unpkg.com/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js"></script>
 
-    <script src="/static/app.js?v=20260907_whale_top10_v3"></script>
+    <script src="/static/app.js?v=20260907_groupby_inst_v4"></script>
 </body>
 </html>
