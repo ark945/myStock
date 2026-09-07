@@ -2498,6 +2498,7 @@ let chipCurrentDate = "";
 let chipCurrentSubtab = "summary";
 let chipCurrentPeriod = 20;
 let chipAccumDataCache = [];
+let chipAccumSort = "score"; // 'score' (預設川湖評分/中小型飆股) | 'amount' (金額優先)
 
 // 1. 初始化戰情室
 async function initChipWarRoom() {
@@ -2585,6 +2586,16 @@ function setupChipEvents() {
             ));
         });
     }
+
+    // 吸籌總表排序切換 (評分優先 vs 金額優先)
+    document.querySelectorAll(".chip-accum-sort-pill").forEach(pill => {
+        pill.addEventListener("click", () => {
+            document.querySelectorAll(".chip-accum-sort-pill").forEach(p => p.classList.remove("active"));
+            pill.classList.add("active");
+            chipAccumSort = pill.getAttribute("data-sort") || "score";
+            loadChipAccumulationData();
+        });
+    });
 
     // 法人席位類別切換
     document.querySelectorAll(".chip-inst-pill").forEach(pill => {
@@ -2755,7 +2766,7 @@ async function loadChipAccumulationData() {
     gridEl.innerHTML = `<div class="chip-loading">⏳ 正在載入 ${chipCurrentPeriod} 日波段吸籌數據...</div>`;
 
     try {
-        const resp = await fetch(`/api/chip/accumulation?date=${chipCurrentDate}&period=${chipCurrentPeriod}`);
+        const resp = await fetch(`/api/chip/accumulation?date=${chipCurrentDate}&period=${chipCurrentPeriod}&sort_by=${chipAccumSort}`);
         const res = await resp.json();
         if (res.success && res.data && res.data.length > 0) {
             chipAccumDataCache = res.data;

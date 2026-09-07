@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260907_groupby_inst_v4">
+    <link rel="stylesheet" href="/static/style.css?v=20260907_accum_score_v5">
 </head>
 <body>
     <!-- 背景粒子裝飾 -->
@@ -385,9 +385,13 @@
                     <button class="chip-period-pill" data-period="10">🔥 10日雙週波段</button>
                     <button class="chip-period-pill active" data-period="20">💎 20日月波段 (川湖模式)</button>
                     <button class="chip-period-pill" data-period="60">🏰 60日季線長莊</button>
-                    <div class="chip-search-box">
+                    <div class="chip-search-box" style="margin-left: auto;">
                         <input type="text" id="chipAccumSearch" placeholder="搜尋股票代號或名稱..." class="chip-input-search">
                     </div>
+                </div>
+                <div class="chip-sort-filter" style="display: flex; gap: 8px; margin-bottom: 16px;">
+                    <button class="chip-accum-sort-pill active" data-sort="score">🏆 依川湖評分 (中小型高純度飆股)</button>
+                    <button class="chip-accum-sort-pill" data-sort="amount">💰 依買超金額 (大戶權值)</button>
                 </div>
                 <div class="chip-cards-grid" id="chipAccumGrid">
                     <!-- 動態載入吸籌卡片 -->
@@ -708,6 +712,6 @@
     <!-- 引入 TradingView Lightweight Charts 獨立生產版 -->
     <script src="https://unpkg.com/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js"></script>
 
-    <script src="/static/app.js?v=20260907_groupby_inst_v4"></script>
+    <script src="/static/app.js?v=20260907_accum_score_v5"></script>
 </body>
 </html>
