@@ -1636,8 +1636,10 @@ async def get_chip_summary(date: Optional[str] = None):
 
 
 @app.get("/api/chip/accumulation")
-async def get_chip_accumulation(date: Optional[str] = None, period: int = 20):
-    """取得指定日期與週期的主力吸籌排行榜 (5d / 10d / 20d / 60d)"""
+async def get_chip_accumulation(date: Optional[str] = None, period: int = 20, sort_by: str = "score"):
+    """取得指定日期與週期的主力吸籌排行榜 (5d / 10d / 20d / 60d)
+    sort_by: 'score' (預設，量化評分優先，中小型高純度飆股) 或 'amount' (金額優先)
+    """
     try:
         if not date:
             latest_res = await asyncio.to_thread(
@@ -1653,16 +1655,19 @@ async def get_chip_accumulation(date: Optional[str] = None, period: int = 20):
         if not date:
             return {"success": True, "data": []}
 
+        order_col = "net_amt_yi" if sort_by == "amount" else "id"
+        order_desc = True if sort_by == "amount" else False
+
         res = await asyncio.to_thread(
             lambda: supabase.table("chip_accumulation_signals")
             .select("*")
             .eq("trade_date", date)
             .eq("period_days", period)
-            .order("net_amt_yi", desc=True)
+            .order(order_col, desc=order_desc)
             .limit(50)
             .execute()
         )
-        return {"success": True, "data": res.data or [], "date": date, "period": period}
+        return {"success": True, "data": res.data or [], "date": date, "period": period, "sort_by": sort_by}
     except Exception as e:
         print(f"Error fetching chip accumulation: {e}")
         return {"success": False, "error": str(e), "data": []}
