@@ -1814,6 +1814,126 @@ async def get_chip_derivatives(date: Optional[str] = None, signal_type: Optional
         return {"success": False, "error": str(e), "data": []}
 
 
+@app.get("/api/chip/whale-matrix")
+async def get_chip_whale_matrix(date: Optional[str] = None, top_n: int = 5):
+    """取得指定日期的權值巨鯨 5d / 10d / 20d 籌碼追蹤矩陣"""
+    try:
+        if not date:
+            latest_res = await asyncio.to_thread(
+                lambda: supabase.table("daily_chip_summary")
+                .select("trade_date")
+                .order("trade_date", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if latest_res.data:
+                date = latest_res.data[0]["trade_date"]
+
+        if not date:
+            return {"success": True, "data": []}
+
+        # 1. 抓取該日 5d 依照淨買超金額排序的前 top_n 名
+        res_5d = await asyncio.to_thread(
+            lambda: supabase.table("chip_accumulation_signals")
+            .select("*")
+            .eq("trade_date", date)
+            .eq("period_days", 5)
+            .order("net_amt_yi", desc=True)
+            .limit(top_n)
+            .execute()
+        )
+        whales = res_5d.data or []
+        if not whales:
+            return {"success": True, "data": [], "date": date}
+
+        # 2. 抓取該日 10d 與 20d 對應標的/分點的金額
+        symbols = list(set(w["symbol"] for w in whales))
+        res_10d = await asyncio.to_thread(
+            lambda: supabase.table("chip_accumulation_signals")
+            .select("symbol,broker_id,broker_name,net_amt_yi,persona_tag")
+            .eq("trade_date", date)
+            .eq("period_days", 10)
+            .in_("symbol", symbols)
+            .execute()
+        )
+        res_20d = await asyncio.to_thread(
+            lambda: supabase.table("chip_accumulation_signals")
+            .select("symbol,broker_id,broker_name,net_amt_yi,persona_tag")
+            .eq("trade_date", date)
+            .eq("period_days", 20)
+            .in_("symbol", symbols)
+            .execute()
+        )
+
+        map_10d = {}
+        for r in (res_10d.data or []):
+            if r.get("broker_id"): map_10d[(r["symbol"], str(r["broker_id"]))] = float(r["net_amt_yi"])
+            if r.get("broker_name"): map_10d[(r["symbol"], str(r["broker_name"]))] = float(r["net_amt_yi"])
+
+        map_20d = {}
+        for r in (res_20d.data or []):
+            if r.get("broker_id"): map_20d[(r["symbol"], str(r["broker_id"]))] = float(r["net_amt_yi"])
+            if r.get("broker_name"): map_20d[(r["symbol"], str(r["broker_name"]))] = float(r["net_amt_yi"])
+
+        matrix = []
+        for idx, w in enumerate(whales):
+            sym = w["symbol"]
+            bid = str(w.get("broker_id") or "")
+            bname = str(w.get("broker_name") or "")
+
+            amt_5d = float(w.get("net_amt_yi", 0))
+            amt_10d = map_10d.get((sym, bid), map_10d.get((sym, bname), None))
+            amt_20d = map_20d.get((sym, bid), map_20d.get((sym, bname), None))
+
+            m_tag = str(w.get("persona_tag") or "")
+            if not m_tag or m_tag == "None":
+                if amt_10d and amt_10d > 0:
+                    pct = (amt_5d / amt_10d) * 100
+                    m_tag = f"🚀 急行軍 ({pct:.0f}%)" if pct >= 80 else (f"🌊 勻速波段 ({pct:.0f}%)" if pct >= 40 else f"⏳ 放緩 ({pct:.0f}%)")
+                else:
+                    m_tag = "⚡ 突發點火"
+
+            if amt_20d and amt_20d >= 30.0 and amt_5d >= 10.0:
+                strategy = "長莊二次總攻 (長波底倉渾厚，短線爆發力極強)"
+                strategy_color = "#c084fc"
+            elif amt_20d and amt_20d >= 15.0 and (amt_5d / amt_20d) <= 0.6:
+                strategy = "月線波段定海神針 (籌碼高度鎖定，沿均線順勢持有)"
+                strategy_color = "#38bdf8"
+            elif "急行軍" in m_tag or (amt_10d and (amt_5d / amt_10d) >= 0.85):
+                strategy = "短線瘋狂點火 (突破前夕急行軍，時效爆發力極高)"
+                strategy_color = "#fb7185"
+            else:
+                strategy = "穩健加碼佈局 (主力持續有節奏建倉)"
+                strategy_color = "#34d399"
+
+            matrix.append({
+                "rank": idx + 1,
+                "symbol": sym,
+                "stock_name": w.get("stock_name", ""),
+                "industry": w.get("industry", "核心權值"),
+                "market": w.get("market", "上市"),
+                "broker_name": bname,
+                "broker_id": bid,
+                "net_amt_5d": amt_5d,
+                "net_amt_10d": amt_10d,
+                "net_amt_20d": amt_20d,
+                "net_shares_5d": w.get("net_shares", 0),
+                "buy_avg_price": w.get("buy_avg_price"),
+                "close_price": w.get("close_price") or w.get("buy_avg_price"),
+                "ignition_date": w.get("ignition_date"),
+                "momentum_tag": m_tag,
+                "strategy": strategy,
+                "strategy_color": strategy_color,
+                "action_guide": w.get("action_guide", "波段巨鯨重押，建議沿主力成本線分批逢低佈局。")
+            })
+
+        return {"success": True, "data": matrix, "date": date, "trade_date": date}
+    except Exception as e:
+        print(f"Error fetching whale matrix: {e}")
+        return {"success": False, "error": str(e), "data": []}
+
+
+
 
 
 # ==========================================
