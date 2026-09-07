@@ -2594,35 +2594,53 @@ function setupChipEvents() {
             const cat = pill.getAttribute("data-cat");
             loadChipInstitutionsData(cat);
         });
-
-        // 衍生與資券雷達分類膠囊過濾
-        document.querySelectorAll(".chip-deriv-pill").forEach(pill => {
-            pill.addEventListener("click", () => {
-                document.querySelectorAll(".chip-deriv-pill").forEach(p => p.classList.remove("active"));
-                pill.classList.add("active");
-                const dType = pill.getAttribute("data-type") || "ALL";
-                loadChipDerivativesData(dType);
-            });
-        });
-
-        // 尾盤 VWAP 標的聚合模式切換 (Group By vs Flat)
-        document.querySelectorAll(".chip-vwap-view-pill").forEach(pill => {
-            pill.addEventListener("click", () => {
-                document.querySelectorAll(".chip-vwap-view-pill").forEach(p => p.classList.remove("active"));
-                pill.classList.add("active");
-                chipVwapViewMode = pill.getAttribute("data-view") || "group";
-                renderVwapCards();
-            });
-        });
-
-        // 尾盤 VWAP 搜尋即時過濾
-        const vwapSearch = document.getElementById("chipVwapSearch");
-        if (vwapSearch) {
-            vwapSearch.addEventListener("input", () => {
-                renderVwapCards();
-            });
-        }
     });
+
+    // 衍生與資券雷達分類膠囊過濾
+    document.querySelectorAll(".chip-deriv-pill").forEach(pill => {
+        pill.addEventListener("click", () => {
+            document.querySelectorAll(".chip-deriv-pill").forEach(p => p.classList.remove("active"));
+            pill.classList.add("active");
+            const dType = pill.getAttribute("data-type") || "ALL";
+            loadChipDerivativesData(dType);
+        });
+    });
+
+    // 尾盤 VWAP 標的聚合模式切換 (Group By vs Flat)
+    document.querySelectorAll(".chip-vwap-view-pill").forEach(pill => {
+        pill.addEventListener("click", () => {
+            document.querySelectorAll(".chip-vwap-view-pill").forEach(p => p.classList.remove("active"));
+            pill.classList.add("active");
+            chipVwapViewMode = pill.getAttribute("data-view") || "group";
+            renderVwapCards();
+        });
+    });
+
+    // 尾盤 VWAP 搜尋即時過濾
+    const vwapSearch = document.getElementById("chipVwapSearch");
+    if (vwapSearch) {
+        vwapSearch.addEventListener("input", () => {
+            renderVwapCards();
+        });
+    }
+
+    // 外資與本土法人 標的聚合模式切換 (Group By vs Flat)
+    document.querySelectorAll(".chip-inst-view-pill").forEach(pill => {
+        pill.addEventListener("click", () => {
+            document.querySelectorAll(".chip-inst-view-pill").forEach(p => p.classList.remove("active"));
+            pill.classList.add("active");
+            chipInstViewMode = pill.getAttribute("data-view") || "group";
+            renderInstCards();
+        });
+    });
+
+    // 外資與本土法人 搜尋即時過濾
+    const instSearch = document.getElementById("chipInstSearch");
+    if (instSearch) {
+        instSearch.addEventListener("input", () => {
+            renderInstCards();
+        });
+    }
 }
 
 // 4. 依當前子分頁載入對應數據
@@ -2903,6 +2921,9 @@ async function loadChipExitData() {
     }
 }
 
+let chipInstRawData = [];
+let chipInstViewMode = "group"; // "group" | "flat"
+
 // 4.4 載入外資與本土法人
 async function loadChipInstitutionsData(category) {
     const gridEl = document.getElementById("chipInstGrid");
@@ -2914,57 +2935,242 @@ async function loadChipInstitutionsData(category) {
         const resp = await fetch(url);
         const res = await resp.json();
         if (res.success && res.data && res.data.length > 0) {
-            gridEl.innerHTML = res.data.map(item => {
-                const isForeign = item.category === "FOREIGN";
-                const isDayTrade = (item.feature_tag && item.feature_tag.includes("短線"));
-                const badgeClass = isDayTrade ? "tag-daytrade" : (isForeign ? "tag-foreign" : "tag-domestic");
-
-                return `
-                    <div class="chip-card glassmorphism">
-                        <div class="chip-card-header">
-                            <div>
-                                <span class="chip-symbol">${item.symbol}</span>
-                                <span class="chip-stock-name">${item.stock_name}</span>
-                                <span class="chip-market-badge">${item.market || "上市"}</span>
-                            </div>
-                            <div class="chip-tag-badge ${badgeClass}">${item.feature_tag || (isForeign ? "外資席位" : "本土法人")}</div>
-                        </div>
-                        <div class="chip-card-body">
-                            <div class="chip-metric-row main">
-                                <div class="metric-block">
-                                    <span class="metric-label">券商專屬席位</span>
-                                    <span class="metric-value-broker ${isForeign ? 'text-foreign' : 'text-domestic'}">${item.broker_name}</span>
-                                </div>
-                                <div class="metric-block right">
-                                    <span class="metric-label">單日淨買超</span>
-                                    <span class="metric-value-amt">+${Number(item.net_amt_yi || 0).toFixed(2)} 億</span>
-                                </div>
-                            </div>
-                            <div class="chip-metric-row sub">
-                                <div class="metric-mini">
-                                    <span class="mini-label">買進均價</span>
-                                    <span class="mini-val">${Number(item.buy_avg_price || 0).toFixed(1)} 元</span>
-                                </div>
-                                <div class="metric-mini">
-                                    <span class="mini-label">買進純度</span>
-                                    <span class="mini-val highlight">${Number(item.buy_purity_pct || 0).toFixed(0)}%</span>
-                                </div>
-                                <div class="metric-mini">
-                                    <span class="mini-label">買超張數</span>
-                                    <span class="mini-val">${Number(item.net_sheets || 0).toFixed(0)} 張</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join("");
+            chipInstRawData = res.data;
+            renderInstCards();
         } else {
+            chipInstRawData = [];
             gridEl.innerHTML = `<div class="chip-empty">此交易日無符合條件之法人席位重押標的</div>`;
         }
     } catch (e) {
         console.error("Error loading institutions:", e);
         gridEl.innerHTML = `<div class="chip-error">載入失敗: ${e.message}</div>`;
     }
+}
+
+// 渲染機構法人卡片 (支援 Group By 標的物聚合 與 平鋪視圖)
+function renderInstCards() {
+    const gridEl = document.getElementById("chipInstGrid");
+    if (!gridEl) return;
+
+    const query = (document.getElementById("chipInstSearch")?.value || "").trim().toLowerCase();
+
+    // 1. 平鋪模式 (Flat Mode)
+    if (chipInstViewMode === "flat") {
+        let filtered = chipInstRawData;
+        if (query) {
+            filtered = filtered.filter(item => 
+                (item.symbol && item.symbol.toLowerCase().includes(query)) ||
+                (item.stock_name && item.stock_name.toLowerCase().includes(query)) ||
+                (item.broker_name && item.broker_name.toLowerCase().includes(query))
+            );
+        }
+
+        if (filtered.length === 0) {
+            gridEl.innerHTML = `<div class="chip-empty" style="grid-column: 1/-1;">無符合搜尋條件之標的</div>`;
+            return;
+        }
+
+        gridEl.innerHTML = filtered.map(item => createInstSingleCardHtml(item)).join("");
+        return;
+    }
+
+    // 2. 標的物聚合模式 (Group By Symbol Mode - 預設推薦)
+    const groupMap = {};
+    chipInstRawData.forEach(item => {
+        const sym = item.symbol;
+        if (!groupMap[sym]) {
+            groupMap[sym] = {
+                symbol: sym,
+                stock_name: item.stock_name,
+                market: item.market || "上市",
+                total_amt_yi: 0,
+                total_sheets: 0,
+                brokers: []
+            };
+        }
+        groupMap[sym].total_amt_yi += Number(item.net_amt_yi || 0);
+        groupMap[sym].total_sheets += Number(item.net_sheets || 0);
+        groupMap[sym].brokers.push(item);
+    });
+
+    let groups = Object.values(groupMap);
+
+    // 依該股票機構合計買超金額降冪排序
+    groups.sort((a, b) => b.total_amt_yi - a.total_amt_yi);
+
+    // 搜尋過濾
+    if (query) {
+        groups = groups.filter(g => 
+            (g.symbol && g.symbol.toLowerCase().includes(query)) ||
+            (g.stock_name && g.stock_name.toLowerCase().includes(query)) ||
+            g.brokers.some(b => b.broker_name && b.broker_name.toLowerCase().includes(query))
+        );
+    }
+
+    if (groups.length === 0) {
+        gridEl.innerHTML = `<div class="chip-empty" style="grid-column: 1/-1;">無符合搜尋條件之標的</div>`;
+        return;
+    }
+
+    gridEl.innerHTML = groups.map(g => createInstGroupCardHtml(g)).join("");
+}
+
+// 單一機構席位卡片 HTML
+function createInstSingleCardHtml(item) {
+    const isForeign = item.category === "FOREIGN";
+    const isDayTrade = (item.feature_tag && item.feature_tag.includes("短線"));
+    const badgeClass = isDayTrade ? "tag-daytrade" : (isForeign ? "tag-foreign" : "tag-domestic");
+
+    return `
+        <div class="chip-card glassmorphism"
+            data-kline-symbol="${item.symbol}" 
+            data-kline-name="${item.stock_name}" 
+            data-kline-market="${item.market || '上市'}" 
+            data-kline-cost="${item.buy_avg_price || ''}" 
+            data-kline-broker="${item.broker_name || ''}" 
+            data-kline-amt="${item.net_amt_yi || ''}">
+            <div class="chip-card-header">
+                <div>
+                    <span class="chip-symbol">${escapeHtml(item.symbol)}</span>
+                    <span class="chip-stock-name">${escapeHtml(item.stock_name)}</span>
+                    <span class="chip-market-badge ${item.market && item.market.includes('櫃') ? 'tpex' : 'twse'}">${escapeHtml(item.market || "上市")}</span>
+                </div>
+                <div style="display:flex; gap:6px; align-items:center;">
+                    <div class="chip-tag-badge ${badgeClass}">${escapeHtml(item.feature_tag || (isForeign ? "外資席位" : "本土法人"))}</div>
+                    <button class="btn-open-kline" title="查看動態日 K 線">📈 K線</button>
+                </div>
+            </div>
+            <div class="chip-card-body">
+                <div class="chip-metric-row main">
+                    <div class="metric-block">
+                        <span class="metric-label">券商專屬席位</span>
+                        <span class="metric-value-broker ${isForeign ? 'text-foreign' : 'text-domestic'}">${escapeHtml(item.broker_name)}</span>
+                    </div>
+                    <div class="metric-block right">
+                        <span class="metric-label">單日淨買超</span>
+                        <span class="metric-value-amt">+${Number(item.net_amt_yi || 0).toFixed(2)} 億</span>
+                    </div>
+                </div>
+                <div class="chip-metric-row sub">
+                    <div class="metric-mini">
+                        <span class="mini-label">買進均價</span>
+                        <span class="mini-val">${Number(item.buy_avg_price || 0).toFixed(1)} 元</span>
+                    </div>
+                    <div class="metric-mini">
+                        <span class="mini-label">買進純度</span>
+                        <span class="mini-val highlight">${Number(item.buy_purity_pct || 0).toFixed(0)}%</span>
+                    </div>
+                    <div class="metric-mini">
+                        <span class="mini-label">買超張數</span>
+                        <span class="mini-val">${Number(item.net_sheets || 0).toFixed(0)} 張</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// 標的物聚合折疊大卡片 HTML
+function createInstGroupCardHtml(g) {
+    const sortedBrokers = [...g.brokers].sort((a, b) => Number(b.net_amt_yi || 0) - Number(a.net_amt_yi || 0));
+    const topBroker = sortedBrokers[0] || {};
+    const isTopForeign = topBroker.category === "FOREIGN";
+
+    const brokersDrawerRows = sortedBrokers.map((b, idx) => {
+        const isF = b.category === "FOREIGN";
+        const isD = (b.feature_tag && b.feature_tag.includes("短線"));
+        const tagCls = isD ? "tag-daytrade" : (isF ? "tag-foreign" : "tag-domestic");
+
+        return `
+            <div class="vwap-drawer-item">
+                <div class="vwap-item-header">
+                    <span class="vwap-broker-rank">${idx + 1}</span>
+                    <span class="vwap-broker-name">🏛️ ${escapeHtml(b.broker_name || '機構席位')}</span>
+                    <span class="chip-tag-badge ${tagCls}" style="font-size:10px; padding:1px 6px;">${escapeHtml(b.feature_tag || (isF ? '外資' : '本土'))}</span>
+                    <span class="vwap-broker-amt">+${Number(b.net_amt_yi || 0).toFixed(2)} 億</span>
+                </div>
+                <div class="vwap-item-sub">
+                    <span>買進均價: <b>${Number(b.buy_avg_price || 0).toFixed(1)} 元</b></span>
+                    <span>買進純度: <b style="color: #38bdf8;">${Number(b.buy_purity_pct || 0).toFixed(0)}%</b></span>
+                    <span>買超張數: <b>${Number(b.net_sheets || 0).toLocaleString()} 張</b></span>
+                </div>
+            </div>
+        `;
+    }).join("");
+
+    return `
+        <div class="chip-card glassmorphism vwap-group-card" id="inst-card-${g.symbol}"
+            data-kline-symbol="${g.symbol}" 
+            data-kline-name="${g.stock_name}" 
+            data-kline-market="${g.market || '上市'}" 
+            data-kline-cost="${topBroker.buy_avg_price || ''}" 
+            data-kline-broker="${topBroker.broker_name || ''}" 
+            data-kline-amt="${g.total_amt_yi}">
+            <div class="chip-card-header" style="padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span class="chip-symbol" style="font-size:17px;">${escapeHtml(g.symbol)}</span>
+                    <span class="chip-stock-name" style="font-size:16px;">${escapeHtml(g.stock_name)}</span>
+                    <span class="chip-market-badge ${g.market && g.market.includes('櫃') ? 'tpex' : 'twse'}">${escapeHtml(g.market)}</span>
+                </div>
+                <div style="display:flex; gap:6px; align-items:center;">
+                    <span class="vwap-broker-count-badge" style="background:rgba(56,189,248,0.15); color:#7dd3fc; border-color:rgba(56,189,248,0.4);">
+                        🏛️ ${g.brokers.length} 家機構席位
+                    </span>
+                    <button class="btn-open-kline" title="查看動態日 K 線">📈 K線</button>
+                </div>
+            </div>
+
+            <div class="chip-card-body">
+                <div class="chip-metric-row main" style="margin-top: 8px;">
+                    <div class="metric-block">
+                        <span class="metric-label">機構合計淨買超</span>
+                        <span class="metric-value-amt" style="font-size: 20px; color: #ef4444;">+${g.total_amt_yi.toFixed(2)} 億</span>
+                    </div>
+                    <div class="metric-block right">
+                        <span class="metric-label">合計買超張數</span>
+                        <span class="metric-value-broker" style="font-size: 16px; color: #f8fafc;">
+                            ${g.total_sheets.toLocaleString()} 張
+                        </span>
+                    </div>
+                </div>
+
+                <div class="vwap-top-leader" style="background: rgba(30, 41, 59, 0.6); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); margin: 10px 0;">
+                    <div style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">👑 頭號重押席位</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 700; color: ${isTopForeign ? '#60a5fa' : '#34d399'};">
+                            ${escapeHtml(topBroker.broker_name || '無')}
+                        </span>
+                        <span style="font-weight: 800; color: #ef4444;">
+                            +${Number(topBroker.net_amt_yi || 0).toFixed(2)} 億 (純度 ${Number(topBroker.buy_purity_pct || 0).toFixed(0)}%)
+                        </span>
+                    </div>
+                </div>
+
+                <!-- 手風琴展開按鈕 -->
+                <button class="btn-vwap-toggle-drawer" onclick="toggleInstDrawer('${g.symbol}', event)">
+                    <span>展開席位明細 (${g.brokers.length} 家機構席位)</span>
+                    <span id="inst-arrow-${g.symbol}" class="vwap-arrow">▼</span>
+                </button>
+
+                <!-- 抽屜內容 -->
+                <div id="inst-drawer-${g.symbol}" class="vwap-drawer" style="display: none;" onclick="event.stopPropagation();">
+                    <div class="vwap-drawer-inner">
+                        ${brokersDrawerRows}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function toggleInstDrawer(sym, event) {
+    if (event) event.stopPropagation();
+    const drawer = document.getElementById(`inst-drawer-${sym}`);
+    const arrow = document.getElementById(`inst-arrow-${sym}`);
+    if (!drawer) return;
+    const isHidden = drawer.style.display === "none";
+    drawer.style.display = isHidden ? "block" : "none";
+    if (arrow) arrow.textContent = isHidden ? "▲" : "▼";
 }
 
 let chipVwapRawData = [];
