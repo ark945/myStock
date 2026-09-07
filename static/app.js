@@ -2595,16 +2595,33 @@ function setupChipEvents() {
             loadChipInstitutionsData(cat);
         });
 
-    // 衍生與資券雷達分類膠囊過濾
-    document.querySelectorAll(".chip-deriv-pill").forEach(pill => {
-        pill.addEventListener("click", () => {
-            document.querySelectorAll(".chip-deriv-pill").forEach(p => p.classList.remove("active"));
-            pill.classList.add("active");
-            const dType = pill.getAttribute("data-type") || "ALL";
-            loadChipDerivativesData(dType);
+        // 衍生與資券雷達分類膠囊過濾
+        document.querySelectorAll(".chip-deriv-pill").forEach(pill => {
+            pill.addEventListener("click", () => {
+                document.querySelectorAll(".chip-deriv-pill").forEach(p => p.classList.remove("active"));
+                pill.classList.add("active");
+                const dType = pill.getAttribute("data-type") || "ALL";
+                loadChipDerivativesData(dType);
+            });
         });
-    });
 
+        // 尾盤 VWAP 標的聚合模式切換 (Group By vs Flat)
+        document.querySelectorAll(".chip-vwap-view-pill").forEach(pill => {
+            pill.addEventListener("click", () => {
+                document.querySelectorAll(".chip-vwap-view-pill").forEach(p => p.classList.remove("active"));
+                pill.classList.add("active");
+                chipVwapViewMode = pill.getAttribute("data-view") || "group";
+                renderVwapCards();
+            });
+        });
+
+        // 尾盤 VWAP 搜尋即時過濾
+        const vwapSearch = document.getElementById("chipVwapSearch");
+        if (vwapSearch) {
+            vwapSearch.addEventListener("input", () => {
+                renderVwapCards();
+            });
+        }
     });
 }
 
@@ -2950,6 +2967,9 @@ async function loadChipInstitutionsData(category) {
     }
 }
 
+let chipVwapRawData = [];
+let chipVwapViewMode = "group"; // "group" (按標的分組) | "flat" (平鋪)
+
 // 4.5 載入尾盤 VWAP 歸因
 async function loadChipVwapData() {
     const gridEl = document.getElementById("chipVwapGrid");
@@ -2960,58 +2980,239 @@ async function loadChipVwapData() {
         const resp = await fetch(`/api/chip/vwap?date=${chipCurrentDate}`);
         const res = await resp.json();
         if (res.success && res.data && res.data.length > 0) {
-            gridEl.innerHTML = res.data.map(item => `
-                <div class="chip-card glassmorphism">
-                    <div class="chip-card-header">
-                        <div>
-                            <span class="chip-symbol">${item.symbol}</span>
-                            <span class="chip-stock-name">${item.stock_name}</span>
-                            <span class="chip-market-badge">${item.market || "上市"}</span>
-                        </div>
-                        <div class="chip-persona-badge">${item.persona_tag || "尾盤推手"}</div>
-                    </div>
-                    <div class="chip-card-body">
-                        <div class="chip-metric-row main">
-                            <div class="metric-block">
-                                <span class="metric-label">尾盤突襲推手</span>
-                                <span class="metric-value-broker">${item.broker_name}</span>
-                            </div>
-                            <div class="metric-block right">
-                                <span class="metric-label">分點淨買超</span>
-                                <span class="metric-value-amt">+${Number(item.net_amt_yi || 0).toFixed(2)} 億</span>
-                            </div>
-                        </div>
-                        <div class="chip-metric-row sub">
-                            <div class="metric-mini">
-                                <span class="mini-label">收盤價 / VWAP</span>
-                                <span class="mini-val">${Number(item.close_price || 0).toFixed(1)} / ${Number(item.vwap_price || 0).toFixed(1)}</span>
-                            </div>
-                            <div class="metric-mini">
-                                <span class="mini-label">均價溢價%</span>
-                                <span class="mini-val gain">+${Number(item.vwap_premium_pct || 0).toFixed(1)}%</span>
-                            </div>
-                            <div class="metric-mini">
-                                <span class="mini-label">推手均價</span>
-                                <span class="mini-val">${Number(item.broker_buy_avg || 0).toFixed(1)} 元</span>
-                            </div>
-                            <div class="metric-mini">
-                                <span class="mini-label">買進純度</span>
-                                <span class="mini-val">${Number(item.buy_purity_pct || 0).toFixed(0)}%</span>
-                            </div>
-                        </div>
-                        <div class="chip-action-guide">
-                            💡 <strong>實戰策略</strong>：${item.action_guide || "尾盤急拉站上均價線，留意次日早盤開高震盪與主力慣性。"}
-                        </div>
-                    </div>
-                </div>
-            `).join("");
+            chipVwapRawData = res.data;
+            renderVwapCards();
         } else {
+            chipVwapRawData = [];
             gridEl.innerHTML = `<div class="chip-empty">今日無尾盤放量站上 VWAP 之強勢標的</div>`;
         }
     } catch (e) {
         console.error("Error loading vwap:", e);
         gridEl.innerHTML = `<div class="chip-error">載入失敗: ${e.message}</div>`;
     }
+}
+
+// 渲染尾盤 VWAP 卡片 (支援標的物聚合 Group By 與全部平鋪)
+function renderVwapCards() {
+    const gridEl = document.getElementById("chipVwapGrid");
+    if (!gridEl) return;
+
+    const query = (document.getElementById("chipVwapSearch")?.value || "").trim().toLowerCase();
+
+    // 1. 平鋪模式 (Flat Mode)
+    if (chipVwapViewMode === "flat") {
+        let filtered = chipVwapRawData;
+        if (query) {
+            filtered = filtered.filter(item => 
+                (item.symbol && item.symbol.toLowerCase().includes(query)) ||
+                (item.stock_name && item.stock_name.toLowerCase().includes(query)) ||
+                (item.broker_name && item.broker_name.toLowerCase().includes(query))
+            );
+        }
+
+        if (filtered.length === 0) {
+            gridEl.innerHTML = `<div class="chip-empty" style="grid-column: 1/-1;">無符合搜尋條件之標的</div>`;
+            return;
+        }
+
+        gridEl.innerHTML = filtered.map(item => createVwapSingleCardHtml(item)).join("");
+        return;
+    }
+
+    // 2. 標的物聚合模式 (Group By Symbol Mode - 預設推薦)
+    const groupMap = {};
+    chipVwapRawData.forEach(item => {
+        const sym = item.symbol;
+        if (!groupMap[sym]) {
+            groupMap[sym] = {
+                symbol: sym,
+                stock_name: item.stock_name,
+                market: item.market || "上市",
+                close_price: Number(item.close_price || 0),
+                vwap_price: Number(item.vwap_price || 0),
+                vwap_premium_pct: Number(item.vwap_premium_pct || 0),
+                total_amt_yi: 0,
+                total_vol_sheets: 0,
+                brokers: []
+            };
+        }
+        groupMap[sym].total_amt_yi += Number(item.net_amt_yi || 0);
+        groupMap[sym].total_vol_sheets += Number(item.net_vol_sheets || 0);
+        groupMap[sym].brokers.push(item);
+    });
+
+    let groups = Object.values(groupMap);
+
+    // 依總淨買超金額降冪排序
+    groups.sort((a, b) => b.total_amt_yi - a.total_amt_yi);
+
+    // 搜尋過濾
+    if (query) {
+        groups = groups.filter(g => 
+            (g.symbol && g.symbol.toLowerCase().includes(query)) ||
+            (g.stock_name && g.stock_name.toLowerCase().includes(query)) ||
+            g.brokers.some(b => b.broker_name && b.broker_name.toLowerCase().includes(query))
+        );
+    }
+
+    if (groups.length === 0) {
+        gridEl.innerHTML = `<div class="chip-empty" style="grid-column: 1/-1;">無符合搜尋條件之標的</div>`;
+        return;
+    }
+
+    gridEl.innerHTML = groups.map(g => createVwapGroupCardHtml(g)).join("");
+}
+
+// 產生單一分點平鋪卡片 HTML
+function createVwapSingleCardHtml(item) {
+    return `
+        <div class="chip-card glassmorphism"
+            data-kline-symbol="${item.symbol}" 
+            data-kline-name="${item.stock_name}" 
+            data-kline-market="${item.market || '上市'}" 
+            data-kline-cost="${item.broker_buy_avg || ''}" 
+            data-kline-broker="${item.broker_name || ''}" 
+            data-kline-amt="${item.net_amt_yi || ''}">
+            <div class="chip-card-header">
+                <div>
+                    <span class="chip-symbol">${escapeHtml(item.symbol)}</span>
+                    <span class="chip-stock-name">${escapeHtml(item.stock_name)}</span>
+                    <span class="chip-market-badge ${item.market && item.market.includes('櫃') ? 'tpex' : 'twse'}">${escapeHtml(item.market || "上市")}</span>
+                </div>
+                <div style="display:flex; gap:6px; align-items:center;">
+                    <div class="chip-persona-badge">${escapeHtml(item.persona_tag || "尾盤推手")}</div>
+                    <button class="btn-open-kline" title="查看動態日 K 線">📈 K線</button>
+                </div>
+            </div>
+            <div class="chip-card-body">
+                <div class="chip-metric-row main">
+                    <div class="metric-block">
+                        <span class="metric-label">尾盤突襲推手</span>
+                        <span class="metric-value-broker">${escapeHtml(item.broker_name)}</span>
+                    </div>
+                    <div class="metric-block right">
+                        <span class="metric-label">分點淨買超</span>
+                        <span class="metric-value-amt">+${Number(item.net_amt_yi || 0).toFixed(2)} 億</span>
+                    </div>
+                </div>
+                <div class="chip-metric-row sub">
+                    <div class="metric-mini">
+                        <span class="mini-label">收盤價 / VWAP</span>
+                        <span class="mini-val">${Number(item.close_price || 0).toFixed(1)} / ${Number(item.vwap_price || 0).toFixed(1)}</span>
+                    </div>
+                    <div class="metric-mini">
+                        <span class="mini-label">均價溢價%</span>
+                        <span class="mini-val gain">+${Number(item.vwap_premium_pct || 0).toFixed(1)}%</span>
+                    </div>
+                    <div class="metric-mini">
+                        <span class="mini-label">推手均價</span>
+                        <span class="mini-val">${Number(item.broker_buy_avg || 0).toFixed(1)} 元</span>
+                    </div>
+                    <div class="metric-mini">
+                        <span class="mini-label">買進純度</span>
+                        <span class="mini-val">${Number(item.buy_purity_pct || 0).toFixed(0)}%</span>
+                    </div>
+                </div>
+                <div class="chip-action-guide">
+                    💡 <strong>實戰策略</strong>：${escapeHtml(item.action_guide || "尾盤急拉站上均價線，留意次日早盤開高震盪與主力慣性。")}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// 產生標的物聚合折疊大卡片 HTML
+function createVwapGroupCardHtml(g) {
+    const sortedBrokers = [...g.brokers].sort((a, b) => Number(b.net_amt_yi || 0) - Number(a.net_amt_yi || 0));
+    const topBroker = sortedBrokers[0] || {};
+
+    const brokersDrawerRows = sortedBrokers.map((b, idx) => `
+        <div class="vwap-drawer-item">
+            <div class="vwap-item-header">
+                <span class="vwap-broker-rank">${idx + 1}</span>
+                <span class="vwap-broker-name">🏛️ ${escapeHtml(b.broker_name || '主力席位')}</span>
+                <span class="vwap-broker-tag">${escapeHtml(b.persona_tag || '主力推手')}</span>
+                <span class="vwap-broker-amt">+${Number(b.net_amt_yi || 0).toFixed(2)} 億</span>
+            </div>
+            <div class="vwap-item-sub">
+                <span>推手買均價: <b>${Number(b.broker_buy_avg || 0).toFixed(1)} 元</b></span>
+                <span>買進純度: <b style="color: #38bdf8;">${Number(b.buy_purity_pct || 0).toFixed(0)}%</b></span>
+                <span>淨買量: <b>${formatVolumeShares(b.net_vol_sheets ? b.net_vol_sheets * 1000 : 0)}</b></span>
+            </div>
+            <div class="vwap-item-guide">
+                💡 ${escapeHtml(b.action_guide || '尾盤急拉突破均價，留意主力隔日開盤慣性。')}
+            </div>
+        </div>
+    `).join("");
+
+    return `
+        <div class="chip-card glassmorphism vwap-group-card" id="vwap-card-${g.symbol}"
+            data-kline-symbol="${g.symbol}" 
+            data-kline-name="${g.stock_name}" 
+            data-kline-market="${g.market || '上市'}" 
+            data-kline-cost="${topBroker.broker_buy_avg || g.close_price || ''}" 
+            data-kline-broker="${topBroker.broker_name || ''}" 
+            data-kline-amt="${g.total_amt_yi}">
+            <div class="chip-card-header" style="padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span class="chip-symbol" style="font-size:17px;">${escapeHtml(g.symbol)}</span>
+                    <span class="chip-stock-name" style="font-size:16px;">${escapeHtml(g.stock_name)}</span>
+                    <span class="chip-market-badge ${g.market && g.market.includes('櫃') ? 'tpex' : 'twse'}">${escapeHtml(g.market)}</span>
+                </div>
+                <div style="display:flex; gap:6px; align-items:center;">
+                    <span class="vwap-broker-count-badge">🔥 ${g.brokers.length} 家分點搶進</span>
+                    <button class="btn-open-kline" title="查看動態日 K 線">📈 K線</button>
+                </div>
+            </div>
+
+            <div class="chip-card-body">
+                <div class="chip-metric-row main" style="margin-top: 8px;">
+                    <div class="metric-block">
+                        <span class="metric-label">全分點合計淨買超</span>
+                        <span class="metric-value-amt" style="font-size: 20px; color: #ef4444;">+${g.total_amt_yi.toFixed(2)} 億</span>
+                    </div>
+                    <div class="metric-block right">
+                        <span class="metric-label">收盤價 / VWAP</span>
+                        <span class="metric-value-broker" style="font-size: 15px;">
+                            ${g.close_price.toFixed(1)} / ${g.vwap_price.toFixed(1)} 
+                            <span style="color:#ef4444; font-size:13px; font-weight:800;">(+${g.vwap_premium_pct.toFixed(1)}%)</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="vwap-top-leader" style="background: rgba(30, 41, 59, 0.6); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); margin: 10px 0;">
+                    <div style="font-size: 11px; color: #94a3b8; margin-bottom: 2px;">👑 主攻頭號推手</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 700; color: #f8fafc;">${escapeHtml(topBroker.broker_name || '無')}</span>
+                        <span style="font-weight: 800; color: #ef4444;">+${Number(topBroker.net_amt_yi || 0).toFixed(2)} 億 (純度 ${Number(topBroker.buy_purity_pct || 0).toFixed(0)}%)</span>
+                    </div>
+                </div>
+
+                <!-- 手風琴展開按鈕 -->
+                <button class="btn-vwap-toggle-drawer" onclick="toggleVwapDrawer('${g.symbol}', event)">
+                    <span>展開席位明細 (${g.brokers.length} 家主力分點)</span>
+                    <span id="vwap-arrow-${g.symbol}" class="vwap-arrow">▼</span>
+                </button>
+
+                <!-- 抽屜內容 -->
+                <div id="vwap-drawer-${g.symbol}" class="vwap-drawer" style="display: none;" onclick="event.stopPropagation();">
+                    <div class="vwap-drawer-inner">
+                        ${brokersDrawerRows}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function toggleVwapDrawer(sym, event) {
+    if (event) event.stopPropagation();
+    const drawer = document.getElementById(`vwap-drawer-${sym}`);
+    const arrow = document.getElementById(`vwap-arrow-${sym}`);
+    if (!drawer) return;
+    const isHidden = drawer.style.display === "none";
+    drawer.style.display = isHidden ? "block" : "none";
+    if (arrow) arrow.textContent = isHidden ? "▲" : "▼";
 }
 
 let chipDerivType = "ALL";

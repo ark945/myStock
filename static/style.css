@@ -3534,3 +3534,155 @@ tr.dragging {
     padding-top: 4px;
 }
 
+/* =========================================================
+   ⚡ 尾盤 VWAP 標的聚合 Group By 與席位手風琴樣式
+   ========================================================= */
+
+.chip-vwap-view-pill {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chip-vwap-view-pill:hover {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    border-color: rgba(56, 189, 248, 0.35);
+}
+
+.chip-vwap-view-pill.active {
+    background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+    color: #ffffff;
+    border-color: #38bdf8;
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
+}
+
+.vwap-group-card {
+    border-top: 3px solid #38bdf8 !important;
+}
+
+.vwap-broker-count-badge {
+    background: rgba(239, 68, 68, 0.18);
+    border: 1px solid rgba(239, 68, 68, 0.45);
+    color: #fca5a5;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+}
+
+.btn-vwap-toggle-drawer {
+    width: 100%;
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px dashed rgba(56, 189, 248, 0.35);
+    color: #38bdf8;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    transition: all 0.2s ease;
+}
+
+.btn-vwap-toggle-drawer:hover {
+    background: rgba(56, 189, 248, 0.18);
+    border-color: #38bdf8;
+    color: #ffffff;
+}
+
+.vwap-drawer {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    animation: fadeIn 0.25s ease-out;
+}
+
+.vwap-drawer-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 280px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.vwap-drawer-item {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+}
+
+.vwap-item-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.vwap-broker-rank {
+    background: rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 800;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.vwap-broker-name {
+    font-weight: 700;
+    color: #f1f5f9;
+}
+
+.vwap-broker-tag {
+    font-size: 10px;
+    background: rgba(56, 189, 248, 0.12);
+    color: #7dd3fc;
+    padding: 1px 5px;
+    border-radius: 4px;
+}
+
+.vwap-broker-amt {
+    margin-left: auto;
+    font-weight: 800;
+    color: #ef4444;
+}
+
+.vwap-item-sub {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 3px;
+}
+
+.vwap-item-sub b {
+    color: #f8fafc;
+}
+
+.vwap-item-guide {
+    font-size: 11px;
+    color: #cbd5e1;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 3px 6px;
+    border-radius: 4px;
+    line-height: 1.3;
+}
+
+
