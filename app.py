@@ -1832,19 +1832,29 @@ async def get_chip_whale_matrix(date: Optional[str] = None, top_n: int = 5):
         if not date:
             return {"success": True, "data": []}
 
-        # 1. 抓取該日 5d 依照淨買超金額排序的前 top_n 名
+        # 1. 抓取該日 5d 依照淨買超金額排序的前 20 名，並依 symbol 去重（每檔龍頭股取金額最大主力席位）
         res_5d = await asyncio.to_thread(
             lambda: supabase.table("chip_accumulation_signals")
             .select("*")
             .eq("trade_date", date)
             .eq("period_days", 5)
             .order("net_amt_yi", desc=True)
-            .limit(top_n)
+            .limit(top_n * 4)
             .execute()
         )
-        whales = res_5d.data or []
-        if not whales:
+        raw_whales = res_5d.data or []
+        if not raw_whales:
             return {"success": True, "data": [], "date": date}
+
+        seen_symbols = set()
+        whales = []
+        for w in raw_whales:
+            sym = w.get("symbol")
+            if sym and sym not in seen_symbols:
+                seen_symbols.add(sym)
+                whales.append(w)
+                if len(whales) >= top_n:
+                    break
 
         # 2. 抓取該日 10d 與 20d 對應標的/分點的金額
         symbols = list(set(w["symbol"] for w in whales))

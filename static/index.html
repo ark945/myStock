@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260907_whale_v1">
+    <link rel="stylesheet" href="/static/style.css?v=20260907_vwap_group_v2">
 </head>
 <body>
     <!-- 背景粒子裝飾 -->
@@ -421,6 +421,16 @@
                 <div class="chip-vwap-banner">
                     💡 <strong>尾盤放量站上均價線 (VWAP) 逆向歸因</strong>：收盤價高於全日均價且尾盤爆量大買，即時拆解推手是「隔日沖急拉倒貨」還是「波段長莊最高價掃貨」。
                 </div>
+                <!-- 視圖切換工具列 (聚合分組 vs 平鋪) -->
+                <div class="chip-view-toolbar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+                    <div class="chip-view-pills" style="display: flex; gap: 8px;">
+                        <button class="chip-vwap-view-pill active" data-view="group">📦 依標的物聚合折疊 (推薦)</button>
+                        <button class="chip-vwap-view-pill" data-view="flat">📋 攤平顯示全部席位</button>
+                    </div>
+                    <div class="chip-vwap-search-wrap">
+                        <input type="text" id="chipVwapSearch" class="chip-search-input" placeholder="🔍 搜尋標的代號或名稱..." style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; color: #f8fafc; padding: 6px 12px; font-size: 13px; width: 220px; outline: none;">
+                    </div>
+                </div>
                 <div class="chip-cards-grid" id="chipVwapGrid">
                     <!-- 動態載入尾盤卡片 -->
                 </div>
@@ -688,6 +698,6 @@
     <!-- 引入 TradingView Lightweight Charts 獨立生產版 -->
     <script src="https://unpkg.com/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js"></script>
 
-    <script src="/static/app.js?v=20260907_whale_v1"></script>
+    <script src="/static/app.js?v=20260907_vwap_group_v2"></script>
 </body>
 </html>
