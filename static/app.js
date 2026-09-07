@@ -2623,6 +2623,8 @@ function loadChipSubtabData() {
         loadChipVwapData();
     } else if (chipCurrentSubtab === "derivatives") {
         loadChipDerivativesData(chipDerivType || "ALL");
+    } else if (chipCurrentSubtab === "whale") {
+        loadChipWhaleMatrixData("chipWhaleMatrixContainer");
     }
 }
 
@@ -2634,6 +2636,9 @@ async function loadChipSummaryData() {
 
     duelEl.innerHTML = `<div class="chip-loading">⏳ 正在載入多空司令對決...</div>`;
     gridEl.innerHTML = `<div class="chip-loading">⏳ 正在載入核心主力焦點...</div>`;
+
+    // 同步載入權值巨鯨矩陣速覽
+    loadChipWhaleMatrixData("chipWhaleMatrixSummaryContainer");
 
     try {
         const resp = await fetch(`/api/chip/summary?date=${chipCurrentDate}`);
@@ -3109,6 +3114,158 @@ async function loadChipDerivativesData(signalType = "ALL") {
     } catch (e) {
         gridEl.innerHTML = `<div class="chip-error" style="text-align: center; padding: 40px; color: #f87171;">載入失敗: ${e.message}</div>`;
     }
+}
+
+// 4.6 載入權值巨鯨籌碼追蹤矩陣 (Whale Matrix)
+async function loadChipWhaleMatrixData(targetContainerId = "chipWhaleMatrixContainer") {
+    const container = document.getElementById(targetContainerId);
+    if (!container) return;
+
+    container.innerHTML = `<div class="chip-loading" style="padding: 24px; text-align: center; color: #38bdf8;">⏳ 正在計算 5d/10d/20d 三維聯動巨鯨籌碼矩陣...</div>`;
+
+    try {
+        const resp = await fetch(`/api/chip/whale-matrix?date=${chipCurrentDate}`);
+        const res = await resp.json();
+        if (res.success && res.data && res.data.length > 0) {
+            container.innerHTML = renderWhaleMatrixHtml(res.data, res.trade_date);
+        } else {
+            container.innerHTML = `
+                <div class="whale-matrix-card glassmorphism">
+                    <div class="whale-matrix-header">
+                        <div class="whale-matrix-title-wrap">
+                            <div class="whale-title-main">
+                                <span class="whale-icon">🐳</span>
+                                <span class="whale-title-text">權值巨鯨籌碼追蹤矩陣 (Whale Matrix)</span>
+                                <span class="whale-dim-tag">5d / 10d / 20d 三維聯動</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chip-empty" style="padding: 30px; text-align: center; color: #94a3b8;">
+                        此交易日 (${chipCurrentDate || '最新'}) 暫無 5d 淨買超百億級或大額巨鯨數據
+                    </div>
+                </div>
+            `;
+        }
+    } catch (e) {
+        console.error("Error loading whale matrix:", e);
+        container.innerHTML = `<div class="chip-error" style="padding: 20px; text-align: center; color: #f87171;">載入巨鯨矩陣失敗: ${e.message}</div>`;
+    }
+}
+
+function renderWhaleMatrixHtml(matrixList, tradeDate) {
+    const rankBadges = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+
+    const rowsHtml = matrixList.map((item, idx) => {
+        const rankIcon = rankBadges[idx] || (idx + 1);
+        const amt5d = item.net_amt_5d != null ? Number(item.net_amt_5d) : (item.net_amt_yi_5d != null ? Number(item.net_amt_yi_5d) : 0);
+        const amt10d = item.net_amt_10d != null ? Number(item.net_amt_10d) : (item.net_amt_yi_10d != null ? Number(item.net_amt_yi_10d) : null);
+        const amt20d = item.net_amt_20d != null ? Number(item.net_amt_20d) : (item.net_amt_yi_20d != null ? Number(item.net_amt_yi_20d) : null);
+
+        const amt5dClass = amt5d >= 0 ? "gain-text" : "loss-text";
+        const amt5dSign = amt5d >= 0 ? "+" : "";
+
+        const amt10dHtml = amt10d != null 
+            ? `<div class="whale-amt-val ${amt10d >= 0 ? 'gain-text' : 'loss-text'}">${amt10d >= 0 ? '+' : ''}${amt10d.toFixed(1)} 億</div><div class="whale-amt-sub">近10日累計</div>`
+            : `<div class="whale-amt-val" style="color: #64748b;">--</div><div class="whale-amt-sub">未達榜</div>`;
+
+        const amt20dHtml = amt20d != null 
+            ? `<div class="whale-amt-val ${amt20d >= 0 ? 'gain-text' : 'loss-text'}">${amt20d >= 0 ? '+' : ''}${amt20d.toFixed(1)} 億</div><div class="whale-amt-sub">近20日累計</div>`
+            : `<div class="whale-amt-val" style="color: #64748b;">--</div><div class="whale-amt-sub">未達榜</div>`;
+
+        const momentumTag = item.momentum_tag || item.character || '波段控盤';
+        const stratTitle = item.strategy || '百億級巨鯨重押';
+        const stratColor = item.strategy_color || '#fbbf24';
+        const actionGuide = item.action_guide || item.guidance || '沿主力成本防守操作';
+        const costPrice = item.buy_avg_price || item.close_price || '';
+
+        return `
+            <tr class="whale-row" 
+                data-kline-symbol="${item.symbol}" 
+                data-kline-name="${item.stock_name}" 
+                data-kline-market="${item.market || '上市'}" 
+                data-kline-broker="${item.broker_name || ''}" 
+                data-kline-amt="${amt5d}"
+                data-kline-cost="${costPrice}"
+                data-kline-ign="${item.ignition_date || ''}">
+                <td class="whale-col-rank"><span class="rank-badge rank-${idx + 1}">${rankIcon}</span></td>
+                <td class="whale-col-stock">
+                    <div class="whale-stock-info">
+                        <div class="whale-stock-top">
+                            <span class="whale-symbol">${escapeHtml(item.symbol)}</span>
+                            <span class="whale-name">${escapeHtml(item.stock_name)}</span>
+                            <span class="whale-market-tag ${item.market && item.market.includes('櫃') ? 'tpex' : 'twse'}">${escapeHtml(item.market || '上市')}</span>
+                        </div>
+                        <div class="whale-industry">${escapeHtml(item.industry || '核心權值')}</div>
+                    </div>
+                </td>
+                <td class="whale-col-broker">
+                    <div class="whale-broker-badge">🏛️ ${escapeHtml(item.broker_name || '主控巨鯨')}</div>
+                    <div class="whale-shares-sub">5d 買超 ${formatVolumeShares(item.net_shares_5d)}</div>
+                </td>
+                <td class="whale-col-amt">
+                    <div class="whale-amt-val ${amt5dClass}">${amt5dSign}${amt5d.toFixed(1)} 億</div>
+                    <div class="whale-amt-sub">近5日累計</div>
+                </td>
+                <td class="whale-col-amt">
+                    ${amt10dHtml}
+                </td>
+                <td class="whale-col-amt">
+                    ${amt20dHtml}
+                </td>
+                <td class="whale-col-char">
+                    <div class="whale-char-header" style="display:flex; gap:6px; align-items:center; margin-bottom:4px; flex-wrap:wrap;">
+                        <span class="whale-char-badge">${escapeHtml(momentumTag)}</span>
+                        <span class="whale-strat-pill" style="font-size:11px; font-weight:700; color:${stratColor}; background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:4px;">${escapeHtml(stratTitle)}</span>
+                    </div>
+                    <div class="whale-guidance-text">${escapeHtml(actionGuide)}</div>
+                </td>
+                <td class="whale-col-action">
+                    <button class="btn-open-kline whale-kline-btn" title="查看動態多週期 K 線">📈 K線</button>
+                </td>
+            </tr>
+        `;
+    }).join("");
+
+    return `
+        <div class="whale-matrix-card glassmorphism">
+            <div class="whale-matrix-header">
+                <div class="whale-matrix-title-wrap">
+                    <div class="whale-title-main">
+                        <span class="whale-icon">🐳</span>
+                        <span class="whale-title-text">權值巨鯨籌碼追蹤矩陣</span>
+                        <span class="whale-dim-tag">5d / 10d / 20d 三維聯動</span>
+                    </div>
+                    <div class="whale-subtitle">
+                        ⚡ 依「實體買超金額 (億)」權重排序，穿透中小型股籌碼迷霧，鎖定掌握台股半壁江山的百億級巨鯨資金底牌
+                    </div>
+                </div>
+                <div class="whale-date-badge">📅 基準日：${tradeDate || chipCurrentDate}</div>
+            </div>
+
+            <div class="whale-table-wrapper">
+                <table class="whale-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 55px; text-align: center;">名次</th>
+                            <th style="min-width: 140px;">標的名稱</th>
+                            <th style="min-width: 150px;">主控巨鯨席位</th>
+                            <th style="min-width: 105px; text-align: right;">5日買超金額</th>
+                            <th style="min-width: 105px; text-align: right;">10日買超金額</th>
+                            <th style="min-width: 105px; text-align: right;">20日買超金額</th>
+                            <th style="min-width: 220px;">巨鯨操盤定性與戰略指引</th>
+                            <th style="width: 75px; text-align: center;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsHtml}
+                    </tbody>
+                </table>
+            </div>
+            <div class="whale-matrix-footer">
+                <span>💡 提示：點擊任何一列或右側「📈 K線」按鈕，即可展開 TradingView 動態日/週/月 K 線與主力建倉成本防守線。</span>
+            </div>
+        </div>
+    `;
 }
 
 

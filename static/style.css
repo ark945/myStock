@@ -3238,3 +3238,299 @@ tr.dragging {
     background: rgba(56, 189, 248, 0.28) !important;
     box-shadow: 0 0 10px rgba(56, 189, 248, 0.4) !important;
 }
+
+/* =========================================================
+   🐳 權值巨鯨籌碼追蹤矩陣 (Whale Matrix) 專屬暗黑玻璃擬態樣式
+   ========================================================= */
+
+.whale-matrix-summary-section {
+    margin-bottom: 28px;
+}
+
+.whale-matrix-standalone-wrapper {
+    margin-top: 10px;
+    margin-bottom: 30px;
+}
+
+.chip-subtab-btn.highlight-whale {
+    background: linear-gradient(135deg, rgba(30, 58, 138, 0.35) 0%, rgba(2, 132, 199, 0.2) 100%);
+    border-color: rgba(56, 189, 248, 0.4);
+    color: #38bdf8;
+    font-weight: 800;
+}
+
+.chip-subtab-btn.highlight-whale.active {
+    background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+    color: #ffffff !important;
+    border-color: #38bdf8 !important;
+    box-shadow: 0 4px 16px rgba(2, 132, 199, 0.45) !important;
+}
+
+.whale-matrix-card {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.88) 0%, rgba(23, 37, 84, 0.38) 50%, rgba(15, 23, 42, 0.92) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.28);
+    border-radius: 16px;
+    padding: 22px 24px;
+    box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    position: relative;
+    overflow: hidden;
+}
+
+.whale-matrix-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #38bdf8, #60a5fa, #c084fc, #38bdf8);
+    background-size: 200% auto;
+    animation: whaleGradientGlow 4s linear infinite;
+}
+
+@keyframes whaleGradientGlow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.whale-matrix-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.whale-title-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.whale-icon {
+    font-size: 24px;
+    filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.6));
+}
+
+.whale-title-text {
+    font-size: 20px;
+    font-weight: 800;
+    color: #f8fafc;
+    letter-spacing: 0.5px;
+    background: linear-gradient(90deg, #ffffff 0%, #bae6fd 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.whale-dim-tag {
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    color: #38bdf8;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 9px;
+    border-radius: 20px;
+    letter-spacing: 0.3px;
+}
+
+.whale-subtitle {
+    font-size: 13px;
+    color: #94a3b8;
+    line-height: 1.5;
+}
+
+.whale-date-badge {
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #cbd5e1;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 8px;
+    white-space: nowrap;
+}
+
+.whale-table-wrapper {
+    overflow-x: auto;
+    margin-bottom: 16px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(15, 23, 42, 0.5);
+}
+
+.whale-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    color: #e2e8f0;
+}
+
+.whale-table th {
+    background: rgba(30, 41, 59, 0.8);
+    color: #94a3b8;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    white-space: nowrap;
+}
+
+.whale-table td {
+    padding: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    vertical-align: middle;
+}
+
+.whale-row {
+    cursor: pointer;
+    transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.whale-row:hover {
+    background: rgba(56, 189, 248, 0.07);
+}
+
+.whale-col-rank {
+    text-align: center;
+}
+
+.rank-badge {
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.whale-stock-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.whale-stock-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.whale-symbol {
+    font-size: 15px;
+    font-weight: 800;
+    color: #38bdf8;
+    letter-spacing: 0.3px;
+}
+
+.whale-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #f1f5f9;
+}
+
+.whale-market-tag {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+
+.whale-market-tag.twse {
+    background: rgba(37, 99, 235, 0.2);
+    color: #93c5fd;
+    border: 1px solid rgba(37, 99, 235, 0.4);
+}
+
+.whale-market-tag.tpex {
+    background: rgba(168, 85, 247, 0.2);
+    color: #d8b4fe;
+    border: 1px solid rgba(168, 85, 247, 0.4);
+}
+
+.whale-industry {
+    font-size: 11px;
+    color: #64748b;
+}
+
+.whale-col-broker {
+    white-space: nowrap;
+}
+
+.whale-broker-badge {
+    font-size: 14px;
+    font-weight: 700;
+    color: #f8fafc;
+    margin-bottom: 2px;
+}
+
+.whale-shares-sub {
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+.whale-col-amt {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.whale-amt-val {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+}
+
+.whale-amt-val.gain-text {
+    color: #ef4444; /* 台股紅漲 */
+}
+
+.whale-amt-val.loss-text {
+    color: #22c55e;
+}
+
+.whale-amt-sub {
+    font-size: 10px;
+    color: #64748b;
+    margin-top: 1px;
+}
+
+.whale-col-char {
+    max-width: 280px;
+}
+
+.whale-char-badge {
+    display: inline-block;
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    color: #fbbf24;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-bottom: 4px;
+}
+
+.whale-guidance-text {
+    font-size: 12px;
+    color: #cbd5e1;
+    line-height: 1.4;
+}
+
+.whale-col-action {
+    text-align: center;
+}
+
+.whale-kline-btn {
+    font-size: 11px;
+    padding: 4px 10px;
+}
+
+.whale-matrix-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    font-size: 12px;
+    color: #94a3b8;
+    padding-top: 4px;
+}
+

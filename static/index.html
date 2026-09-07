@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260905_kline_v3">
+    <link rel="stylesheet" href="/static/style.css?v=20260907_whale_v1">
 </head>
 <body>
     <!-- 背景粒子裝飾 -->
@@ -353,6 +353,7 @@
             <!-- 子分頁導覽按鈕 (Pill Segment Controls) -->
             <div class="chip-subnav">
                 <button class="chip-subtab-btn active" data-subtab="summary">👑 今日戰情速覽</button>
+                <button class="chip-subtab-btn highlight-whale" data-subtab="whale">🐳 權值巨鯨矩陣</button>
                 <button class="chip-subtab-btn" data-subtab="accumulation">📥 四週期吸籌總表</button>
                 <button class="chip-subtab-btn danger" data-subtab="exit">📤 主力出貨下車</button>
                 <button class="chip-subtab-btn" data-subtab="institutions">🌐 外資與本土法人</button>
@@ -366,6 +367,8 @@
                     <!-- 今日多空司令對決卡 (動態渲染) -->
                     <div class="chip-loading">⏳ 正在載入主力戰情...</div>
                 </div>
+                <!-- 🐳 權值巨鯨籌碼追蹤矩陣 (速覽嵌入) -->
+                <div id="chipWhaleMatrixSummaryContainer" class="whale-matrix-summary-section"></div>
                 <div class="chip-highlight-section">
                     <h3 class="chip-section-title">⭐ 今日最關鍵主力訊號精選</h3>
                     <div class="chip-cards-grid" id="chipHighlightsGrid">
@@ -436,6 +439,13 @@
                 </div>
                 <div class="chip-cards-grid" id="chipDerivativesGrid">
                     <!-- 動態載入衍生卡片 -->
+                </div>
+            </div>
+
+            <!-- 7. 權值巨鯨矩陣獨立面板 -->
+            <div id="chip-subtab-whale" class="chip-subcontent">
+                <div class="whale-matrix-standalone-wrapper">
+                    <div id="chipWhaleMatrixContainer"></div>
                 </div>
             </div>
         </div>
@@ -678,6 +688,6 @@
     <!-- 引入 TradingView Lightweight Charts 獨立生產版 -->
     <script src="https://unpkg.com/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js"></script>
 
-    <script src="/static/app.js?v=20260905_kline_v3"></script>
+    <script src="/static/app.js?v=20260907_whale_v1"></script>
 </body>
 </html>
