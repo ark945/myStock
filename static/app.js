@@ -3354,7 +3354,7 @@ async function loadChipWhaleMatrixData(targetContainerId = "chipWhaleMatrixConta
 }
 
 function renderWhaleMatrixHtml(matrixList, tradeDate) {
-    const rankBadges = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+    const rankBadges = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
 
     const rowsHtml = matrixList.map((item, idx) => {
         const rankIcon = rankBadges[idx] || (idx + 1);
