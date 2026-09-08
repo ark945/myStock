@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20260908_tooltip_v6">
+    <link rel="stylesheet" href="/static/style.css?v=20260908_add_to_wl_v7">
 </head>
 <body>
     <!-- 背景粒子裝飾 -->
@@ -641,6 +641,7 @@
                         <span class="kline-stock-symbol" id="klineStockSymbol">2887</span>
                         <span class="kline-stock-name" id="klineStockName">台新新光金</span>
                         <span class="chip-market-badge" id="klineMarketBadge">上市</span>
+                        <button class="btn-add-to-watchlist-inline" id="klineAddToWlHeaderBtn" title="加入追蹤清單">➕ 加自選</button>
                     </div>
                     <div class="kline-price-box">
                         <span class="kline-cur-price" id="klineCurPrice">--</span>
@@ -704,14 +705,84 @@
                 <div class="kline-chip-summary" id="klineChipSummary">
                     <!-- 動態填充: 主力分點、買超金額、純度、點火日起算日 -->
                 </div>
-                <button class="btn btn-secondary" id="klineModalCancel">關閉</button>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button class="btn btn-primary" id="klineAddToWlFooterBtn" style="background: linear-gradient(135deg, #38bdf8, #2563eb); border: none; font-size: 13px; font-weight: 700; padding: 7px 16px; border-radius: 8px; color: #fff; cursor: pointer;">➕ 加入自選清單</button>
+                    <button class="btn btn-secondary" id="klineModalCancel">關閉</button>
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- ========================================== -->
+    <!-- ➕ 加入追蹤清單彈窗 (Add to Watchlist Modal) -->
+    <!-- ========================================== -->
+    <div class="modal-overlay add-watchlist-modal-overlay" id="addWatchlistModalOverlay" style="display: none;">
+        <div class="modal-dialog add-watchlist-dialog glassmorphism">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <span class="modal-icon">➕</span>
+                    <span class="modal-title-text">加入追蹤清單</span>
+                </div>
+                <button class="modal-close" id="addWatchlistModalClose" title="關閉視窗">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 20px 24px;">
+                <!-- 標的預覽卡片 -->
+                <div class="add-wl-stock-preview">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span id="addWlSymbol" class="add-wl-symbol">--</span>
+                        <span id="addWlName" class="add-wl-name">--</span>
+                        <span id="addWlMarket" class="chip-market-badge">上市</span>
+                    </div>
+                    <div id="addWlRefPrice" class="add-wl-price">-- 元</div>
+                </div>
+
+                <!-- 選擇使用者 -->
+                <div class="form-group" id="addWlUserGroup" style="margin-bottom: 14px;">
+                    <label for="addWlUserSelect" class="form-label-sub">👤 目標使用者</label>
+                    <select id="addWlUserSelect" class="glass-select-field">
+                        <!-- 動態填充使用者選項 -->
+                    </select>
+                </div>
+
+                <!-- 選擇追蹤清單分類 -->
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label for="addWlSelect" class="form-label-sub">📋 選擇要存入的自選清單</label>
+                    <select id="addWlSelect" class="glass-select-field">
+                        <!-- 動態填充清單選項 -->
+                    </select>
+                </div>
+
+                <!-- 新建清單輸入框 (當選擇 '+ 建立新清單...' 時顯示) -->
+                <div class="form-group" id="addWlNewGroup" style="display: none; margin-bottom: 14px;">
+                    <label for="addWlNewName" class="form-label-sub" style="color: #38bdf8;">✨ 新清單名稱</label>
+                    <input type="text" id="addWlNewName" class="glass-input-field" placeholder="例如：半導體主力股、波段飆股...">
+                </div>
+
+                <!-- 成本價與目標價設定 -->
+                <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px;">
+                    <div>
+                        <label for="addWlEntryPrice" class="form-label-sub">買入價格 (元，選填)</label>
+                        <input type="number" step="any" id="addWlEntryPrice" class="glass-input-field" placeholder="留空則取現價">
+                    </div>
+                    <div>
+                        <label for="addWlTargetPrice" class="form-label-sub">停利目標價 (元，選填)</label>
+                        <input type="number" step="any" id="addWlTargetPrice" class="glass-input-field" placeholder="0.0">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 14px 24px; display: flex; justify-content: flex-end; gap: 10px;">
+                <button class="btn btn-secondary" id="addWatchlistModalCancel">取消</button>
+                <button class="btn btn-primary" id="addWatchlistModalConfirm" style="background: linear-gradient(135deg, #38bdf8, #2563eb); border: none; font-weight: 700; padding: 8px 22px; border-radius: 8px; color: #ffffff; cursor: pointer;">確定加入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 全局 Toast 提示容器 -->
+    <div id="toastContainer" class="toast-container"></div>
+
     <!-- 引入 TradingView Lightweight Charts 獨立生產版 -->
     <script src="https://unpkg.com/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js"></script>
 
-    <script src="/static/app.js?v=20260908_tooltip_v6"></script>
+    <script src="/static/app.js?v=20260908_add_to_wl_v7"></script>
 </body>
 </html>

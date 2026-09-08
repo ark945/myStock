@@ -85,6 +85,295 @@ const chipInstitutionBody = document.getElementById("chipInstitutionBody");
 const chipMarginBody = document.getElementById("chipMarginBody");
 const chipHoldersContainer = document.getElementById("chipHoldersContainer");
 
+// ========== 加入追蹤清單彈窗 (Add to Watchlist Modal) ==========
+let pendingAddToListStock = null;
+const addWatchlistModalOverlay = document.getElementById("addWatchlistModalOverlay");
+const addWatchlistModalClose = document.getElementById("addWatchlistModalClose");
+const addWatchlistModalCancel = document.getElementById("addWatchlistModalCancel");
+const addWatchlistModalConfirm = document.getElementById("addWatchlistModalConfirm");
+const addWlSymbol = document.getElementById("addWlSymbol");
+const addWlName = document.getElementById("addWlName");
+const addWlMarket = document.getElementById("addWlMarket");
+const addWlRefPrice = document.getElementById("addWlRefPrice");
+const addWlUserGroup = document.getElementById("addWlUserGroup");
+const addWlUserSelect = document.getElementById("addWlUserSelect");
+const addWlSelect = document.getElementById("addWlSelect");
+const addWlNewGroup = document.getElementById("addWlNewGroup");
+const addWlNewName = document.getElementById("addWlNewName");
+const addWlEntryPrice = document.getElementById("addWlEntryPrice");
+const addWlTargetPrice = document.getElementById("addWlTargetPrice");
+
+const klineAddToWlHeaderBtn = document.getElementById("klineAddToWlHeaderBtn");
+const klineAddToWlFooterBtn = document.getElementById("klineAddToWlFooterBtn");
+
+// 現代全域 Toast 提示訊息
+function showToast(message, type = "success") {
+    const container = document.getElementById("toastContainer");
+    if (!container) return;
+
+    const toast = document.createElement("div");
+    toast.className = `toast-item toast-${type}`;
+    
+    let icon = "✅";
+    if (type === "warning") icon = "⚠️";
+    else if (type === "error") icon = "❌";
+    else if (type === "info") icon = "ℹ️";
+
+    toast.innerHTML = `<span style="font-size:16px;">${icon}</span><span>${escapeHtml(message)}</span>`;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.classList.add("toast-exit");
+        setTimeout(() => toast.remove(), 300);
+    }, 3200);
+}
+
+// 開啟加入自選清單彈窗 (支援任意標的物、傳入參考價)
+async function openAddToListModal(symbol, stockName, market, defaultPrice = null, event = null) {
+    if (event) event.stopPropagation();
+
+    pendingAddToListStock = {
+        symbol: String(symbol).trim(),
+        name: stockName || symbol,
+        market: market || "上市",
+        defaultPrice: defaultPrice != null && !isNaN(defaultPrice) ? Number(defaultPrice) : null
+    };
+
+    if (addWlSymbol) addWlSymbol.textContent = pendingAddToListStock.symbol;
+    if (addWlName) addWlName.textContent = pendingAddToListStock.name;
+    if (addWlMarket) {
+        addWlMarket.textContent = pendingAddToListStock.market;
+        addWlMarket.className = `chip-market-badge ${pendingAddToListStock.market && pendingAddToListStock.market.includes('櫃') ? 'tpex' : 'twse'}`;
+    }
+    if (addWlRefPrice) {
+        addWlRefPrice.textContent = pendingAddToListStock.defaultPrice != null 
+            ? `${pendingAddToListStock.defaultPrice.toFixed(2)} 元` 
+            : "-- 元";
+    }
+
+    if (addWlEntryPrice) {
+        addWlEntryPrice.value = pendingAddToListStock.defaultPrice != null ? pendingAddToListStock.defaultPrice.toFixed(2) : "";
+    }
+    if (addWlTargetPrice) {
+        addWlTargetPrice.value = "";
+    }
+
+    // 填充使用者選單 (若使用者數 > 1 顯示，否則預設 currentUser)
+    if (addWlUserSelect && users.length > 0) {
+        addWlUserSelect.innerHTML = users.map(u => 
+            `<option value="${u.id}" ${currentUser && u.id === currentUser.id ? 'selected' : ''}>${escapeHtml(u.username)}</option>`
+        ).join("");
+        if (addWlUserGroup) {
+            addWlUserGroup.style.display = users.length > 1 ? "block" : "none";
+        }
+    }
+
+    // 載入並填充目標清單下拉
+    await populateWatchlistOptions();
+
+    if (addWlNewGroup) addWlNewGroup.style.display = "none";
+    if (addWlNewName) addWlNewName.value = "";
+
+    if (addWatchlistModalOverlay) {
+        addWatchlistModalOverlay.style.display = "flex";
+    }
+}
+
+// 填充自選清單下拉選單
+async function populateWatchlistOptions() {
+    if (!addWlSelect) return;
+
+    const selectedUserId = addWlUserSelect ? parseInt(addWlUserSelect.value) : (currentUser ? currentUser.id : null);
+    let targetLists = watchlists;
+
+    // 若選取的使用者與當前不同，即時拉取其清單
+    if (selectedUserId && (!currentUser || selectedUserId !== currentUser.id)) {
+        try {
+            const res = await fetch(`${API_BASE}/api/watchlists?user_id=${selectedUserId}`);
+            const data = await res.json();
+            if (data.success) {
+                targetLists = data.data;
+            }
+        } catch (e) {
+            console.error("載入目標使用者清單失敗:", e);
+        }
+    }
+
+    let optsHtml = "";
+    if (targetLists && targetLists.length > 0) {
+        optsHtml = targetLists.map(w => 
+            `<option value="${w.id}" ${currentWatchlist && w.id === currentWatchlist.id ? 'selected' : ''}>📂 ${escapeHtml(w.name)}</option>`
+        ).join("");
+    }
+    optsHtml += `<option value="__NEW__" style="color: #38bdf8; font-weight: bold;">➕ [建立新清單...]</option>`;
+
+    addWlSelect.innerHTML = optsHtml;
+
+    // 監聽是否選中建立新清單
+    addWlSelect.onchange = function() {
+        if (addWlNewGroup) {
+            addWlNewGroup.style.display = this.value === "__NEW__" ? "block" : "none";
+            if (this.value === "__NEW__" && addWlNewName) {
+                addWlNewName.focus();
+            }
+        }
+    };
+}
+
+// 確定送出加入清單
+async function handleConfirmAddToList() {
+    if (!pendingAddToListStock) return;
+
+    const selectedUserId = addWlUserSelect ? parseInt(addWlUserSelect.value) : (currentUser ? currentUser.id : null);
+    let targetWlId = addWlSelect ? addWlSelect.value : null;
+    let targetWlName = "";
+
+    if (targetWlId === "__NEW__") {
+        const newName = (addWlNewName ? addWlNewName.value : "").trim();
+        if (!newName) {
+            alert("請輸入新清單名稱！");
+            if (addWlNewName) addWlNewName.focus();
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_BASE}/api/watchlists`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: newName, user_id: selectedUserId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                targetWlId = data.data.id;
+                targetWlName = data.data.name;
+                // 若當前使用者剛好是此人，更新本地 watchlists 列表
+                if (currentUser && selectedUserId === currentUser.id) {
+                    watchlists.push(data.data);
+                    renderWatchlistGroups();
+                }
+            } else {
+                alert("建立新清單失敗：" + (data.error || "未知錯誤"));
+                return;
+            }
+        } catch (e) {
+            console.error("建立新清單失敗:", e);
+            alert("建立新清單失敗: " + e.message);
+            return;
+        }
+    } else {
+        targetWlId = parseInt(targetWlId);
+        const selOpt = addWlSelect ? addWlSelect.options[addWlSelect.selectedIndex] : null;
+        targetWlName = selOpt ? selOpt.textContent.replace("📂 ", "").trim() : "指定清單";
+    }
+
+    if (!targetWlId) {
+        alert("請先選擇要存入的自選清單！");
+        return;
+    }
+
+    const customEntryPrice = addWlEntryPrice && addWlEntryPrice.value !== "" ? parseFloat(addWlEntryPrice.value) : null;
+    const customTargetPrice = addWlTargetPrice && addWlTargetPrice.value !== "" ? parseFloat(addWlTargetPrice.value) : 0.0;
+
+    const stockPayload = {
+        symbol: pendingAddToListStock.symbol,
+        name: pendingAddToListStock.name,
+        market: pendingAddToListStock.market,
+        entry_date: new Date().toISOString().split("T")[0],
+        entry_price: customEntryPrice,
+        target_price: customTargetPrice,
+        watchlist_id: targetWlId
+    };
+
+    if (addWatchlistModalConfirm) {
+        addWatchlistModalConfirm.disabled = true;
+        addWatchlistModalConfirm.textContent = "加入中...";
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/api/watchlist`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(stockPayload)
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            if (addWatchlistModalOverlay) addWatchlistModalOverlay.style.display = "none";
+            showToast(`🎉 成功將 ${pendingAddToListStock.symbol} ${pendingAddToListStock.name} 加入「${targetWlName}」！`, "success");
+
+            // 若加入的清單剛好是當前首頁顯示的清單，立即刷新
+            if (currentWatchlist && targetWlId === currentWatchlist.id) {
+                await loadWatchlist();
+                renderWatchlist();
+                if (watchlist.length > 0) {
+                    fetchQuotes();
+                }
+            }
+        } else {
+            alert("加入自選清單失敗: " + (data.error || "未知錯誤"));
+        }
+    } catch (e) {
+        console.error("加入自選清單錯誤:", e);
+        alert("加入自選清單連線異常: " + e.message);
+    } finally {
+        if (addWatchlistModalConfirm) {
+            addWatchlistModalConfirm.disabled = false;
+            addWatchlistModalConfirm.textContent = "確定加入";
+        }
+        pendingAddToListStock = null;
+    }
+}
+
+// 關閉加入自選清單彈窗
+function closeAddToListModal() {
+    if (addWatchlistModalOverlay) addWatchlistModalOverlay.style.display = "none";
+    pendingAddToListStock = null;
+}
+
+// 初始化加入自選彈窗事件監聽
+function initAddWatchlistModalEvents() {
+    if (addWatchlistModalClose) addWatchlistModalClose.onclick = closeAddToListModal;
+    if (addWatchlistModalCancel) addWatchlistModalCancel.onclick = closeAddToListModal;
+    if (addWatchlistModalConfirm) addWatchlistModalConfirm.onclick = handleConfirmAddToList;
+    if (addWatchlistModalOverlay) {
+        addWatchlistModalOverlay.onclick = function(e) {
+            if (e.target === addWatchlistModalOverlay) closeAddToListModal();
+        };
+    }
+    if (addWlUserSelect) {
+        addWlUserSelect.onchange = () => populateWatchlistOptions();
+    }
+
+    // K 線 Modal 頭部與底部「➕ 加自選」按鈕綁定
+    if (klineAddToWlHeaderBtn) {
+        klineAddToWlHeaderBtn.onclick = function(e) {
+            if (currentKlineParams && currentKlineParams.symbol) {
+                openAddToListModal(
+                    currentKlineParams.symbol,
+                    currentKlineParams.name,
+                    currentKlineParams.market,
+                    currentKlineParams.buyAvgPrice,
+                    e
+                );
+            }
+        };
+    }
+    if (klineAddToWlFooterBtn) {
+        klineAddToWlFooterBtn.onclick = function(e) {
+            if (currentKlineParams && currentKlineParams.symbol) {
+                openAddToListModal(
+                    currentKlineParams.symbol,
+                    currentKlineParams.name,
+                    currentKlineParams.market,
+                    currentKlineParams.buyAvgPrice,
+                    e
+                );
+            }
+        };
+    }
+}
+
+
 // ========== User Profiles API ==========
 // 更新網址列的 user 參數，確保與當前選取的使用者同步
 function updateUserUrl(username) {
@@ -489,8 +778,9 @@ async function loadWatchlist() {
     }
 }
 
-async function addToWatchlist(stock) {
-    if (!currentWatchlist) return false;
+async function addToWatchlist(stock, targetWatchlistId = null) {
+    const wlId = targetWatchlistId || (currentWatchlist ? currentWatchlist.id : null);
+    if (!wlId) return false;
     try {
         const res = await fetch(`${API_BASE}/api/watchlist`, {
             method: "POST",
@@ -499,10 +789,10 @@ async function addToWatchlist(stock) {
                 symbol: stock.symbol,
                 name: stock.name,
                 market: stock.market,
-                entry_date: stock.entryDate,
+                entry_date: stock.entryDate || new Date().toISOString().split("T")[0],
                 entry_price: stock.entryPrice,
                 target_price: stock.targetPrice != null ? stock.targetPrice : 0.0,
-                watchlist_id: currentWatchlist.id
+                watchlist_id: wlId
             }),
         });
         const data = await res.json();
@@ -2876,6 +3166,7 @@ function createAccumCardHtml(item) {
                         ${escapeHtml(pTag)} <span class="tag-info-icon" style="font-size:10px; opacity:0.8;">ⓘ</span>
                     </div>
                     <button class="btn-open-kline" title="查看動態日 K 線">📈 K線</button>
+                    <button class="btn-card-add-watchlist" onclick="openAddToListModal('${item.symbol}', '${escapeHtml(item.stock_name)}', '${escapeHtml(item.market || '上市')}', ${item.close_price || item.buy_avg_price || 'null'}, event)" title="加入追蹤清單">➕ 自選</button>
                 </div>
             </div>
 
@@ -2944,7 +3235,11 @@ async function loadChipExitData() {
                             <span class="chip-stock-name" style="font-size: 17px; color: #f8fafc; font-weight: 800; margin-left: 6px;">${item.stock_name}</span>
                             <span class="chip-market-badge" style="margin-left: 6px;">${item.market || "上市"}</span>
                         </div>
-                        <div class="chip-warning-badge">${item.warning_level || "🚨 出貨預警"}</div>
+                        <div style="display:flex; gap:6px; align-items:center;">
+                            <div class="chip-warning-badge">${item.warning_level || "🚨 出貨預警"}</div>
+                            <button class="btn-open-kline" onclick="openKlineModal({symbol: '${item.symbol}', name: '${escapeHtml(item.stock_name)}', market: '${escapeHtml(item.market || '上市')}', buyAvgPrice: ${item.sell_avg_price || 'null'}}); event.stopPropagation();" title="查看動態日 K 線">📈 K線</button>
+                            <button class="btn-card-add-watchlist" onclick="openAddToListModal('${item.symbol}', '${escapeHtml(item.stock_name)}', '${escapeHtml(item.market || '上市')}', ${item.sell_avg_price || 'null'}, event)" title="加入追蹤清單">➕ 自選</button>
+                        </div>
                     </div>
                     <div class="chip-card-body">
                         <div class="chip-metric-row main">
@@ -3103,6 +3398,7 @@ function createInstSingleCardHtml(item) {
                 <div style="display:flex; gap:6px; align-items:center;">
                     <div class="chip-tag-badge ${badgeClass}">${escapeHtml(item.feature_tag || (isForeign ? "外資席位" : "本土法人"))}</div>
                     <button class="btn-open-kline" title="查看動態日 K 線">📈 K線</button>
+                    <button class="btn-card-add-watchlist" onclick="openAddToListModal('${item.symbol}', '${escapeHtml(item.stock_name)}', '${escapeHtml(item.market || '上市')}', ${item.buy_avg_price || 'null'}, event)" title="加入追蹤清單">➕ 自選</button>
                 </div>
             </div>
             <div class="chip-card-body">
@@ -3182,6 +3478,7 @@ function createInstGroupCardHtml(g) {
                         🏛️ ${g.brokers.length} 家機構席位
                     </span>
                     <button class="btn-open-kline" title="查看動態日 K 線">📈 K線</button>
+                    <button class="btn-card-add-watchlist" onclick="openAddToListModal('${g.symbol}', '${escapeHtml(g.stock_name)}', '${escapeHtml(g.market || '上市')}', ${topBroker.buy_avg_price || 'null'}, event)" title="加入追蹤清單">➕ 自選</button>
                 </div>
             </div>
 
@@ -3353,6 +3650,7 @@ function createVwapSingleCardHtml(item) {
                 <div style="display:flex; gap:6px; align-items:center;">
                     <div class="chip-persona-badge">${escapeHtml(item.persona_tag || "尾盤推手")}</div>
                     <button class="btn-open-kline" title="查看動態日 K 線">📈 K線</button>
+                    <button class="btn-card-add-watchlist" onclick="openAddToListModal('${item.symbol}', '${escapeHtml(item.stock_name)}', '${escapeHtml(item.market || '上市')}', ${item.close_price || item.broker_buy_avg || 'null'}, event)" title="加入追蹤清單">➕ 自選</button>
                 </div>
             </div>
             <div class="chip-card-body">
@@ -3433,6 +3731,7 @@ function createVwapGroupCardHtml(g) {
                 <div style="display:flex; gap:6px; align-items:center;">
                     <span class="vwap-broker-count-badge">🔥 ${g.brokers.length} 家分點搶進</span>
                     <button class="btn-open-kline" title="查看動態日 K 線">📈 K線</button>
+                    <button class="btn-card-add-watchlist" onclick="openAddToListModal('${g.symbol}', '${escapeHtml(g.stock_name)}', '${escapeHtml(g.market || '上市')}', ${g.close_price || topBroker.broker_buy_avg || 'null'}, event)" title="加入追蹤清單">➕ 自選</button>
                 </div>
             </div>
 
@@ -3542,7 +3841,11 @@ async function loadChipDerivativesData(signalType = "ALL") {
                             <span class="chip-stock-name" style="font-size: 17px; font-weight: 800; color: #f8fafc; margin: 0 4px;">${stockName}</span>
                             <span class="chip-market-badge" style="font-size: 11px; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius: 4px; color: #94a3b8;">${marketName}</span>
                         </div>
-                        <div class="chip-persona-badge has-tooltip" title="${escapeHtml(getChipTagTooltip(personaTag))}" style="background: ${tagBg}; color: ${tagColor}; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; border: 1px solid ${borderColor}; cursor: help;">${personaTag} <span class="tag-info-icon" style="font-size:10px; opacity:0.8;">ⓘ</span></div>
+                        <div style="display:flex; gap:5px; align-items:center; flex-wrap:wrap;">
+                            <div class="chip-persona-badge has-tooltip" title="${escapeHtml(getChipTagTooltip(personaTag))}" style="background: ${tagBg}; color: ${tagColor}; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; border: 1px solid ${borderColor}; cursor: help;">${personaTag} <span class="tag-info-icon" style="font-size:10px; opacity:0.8;">ⓘ</span></div>
+                            <button class="btn-open-kline" onclick="openKlineModal({symbol: '${item.symbol}', name: '${escapeHtml(stockName)}', market: '${escapeHtml(marketName)}', buyAvgPrice: ${item.close_price || 'null'}}); event.stopPropagation();" title="查看動態日 K 線">📈 K線</button>
+                            <button class="btn-card-add-watchlist" onclick="openAddToListModal('${item.symbol}', '${escapeHtml(stockName)}', '${escapeHtml(marketName)}', ${item.close_price || 'null'}, event)" title="加入追蹤清單">➕ 自選</button>
+                        </div>
                     </div>
                     <div class="chip-card-body">
                         <div class="chip-metric-row main" style="display: flex; justify-content: space-between; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.08);">
@@ -3692,7 +3995,10 @@ function renderWhaleMatrixHtml(matrixList, tradeDate) {
                     <div class="whale-guidance-text">${escapeHtml(actionGuide)}</div>
                 </td>
                 <td class="whale-col-action">
-                    <button class="btn-open-kline whale-kline-btn" title="查看動態多週期 K 線">📈 K線</button>
+                    <div style="display:flex; gap:4px; align-items:center;">
+                        <button class="btn-open-kline whale-kline-btn" title="查看動態多週期 K 線">📈 K線</button>
+                        <button class="btn-card-add-watchlist whale-add-btn" onclick="openAddToListModal('${item.symbol}', '${escapeHtml(item.stock_name)}', '${escapeHtml(item.market || '上市')}', ${costPrice || 'null'}, event)" title="加入自選清單">➕ 自選</button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -4253,8 +4559,15 @@ function setupKlineEventListeners() {
         }
     });
 
-    // 全站點擊任何標有 data-kline-symbol 屬性之卡片或按鈕開啟 K 線
+    // 全站點擊任何標有 data-kline-symbol 屬性之卡片或按鈕開啟 K 線 (但排除加入自選與抽屜按鈕)
     document.addEventListener("click", e => {
+        if (e.target.closest(".btn-card-add-watchlist") || 
+            e.target.closest(".btn-add-to-watchlist-inline") || 
+            e.target.closest(".btn-vwap-toggle-drawer") ||
+            e.target.closest(".modal-dialog")) {
+            return;
+        }
+
         const klineTrigger = e.target.closest("[data-kline-symbol]");
         if (klineTrigger) {
             e.stopPropagation();
@@ -4280,7 +4593,12 @@ function setupKlineEventListeners() {
 
 // 於 DOMContentLoaded 初始化
 if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", setupKlineEventListeners);
+    document.addEventListener("DOMContentLoaded", () => {
+        setupKlineEventListeners();
+        initAddWatchlistModalEvents();
+    });
 } else {
     setupKlineEventListeners();
+    initAddWatchlistModalEvents();
 }
+
