@@ -64,21 +64,49 @@ supabase: Client = create_client(SUPABASE_URL or "https://placeholder.supabase.c
 # ==========================================
 loop_count = 0
 
+def is_any_market_active() -> bool:
+    """
+    檢查目前是否有任何受支援之金融市場正在交易：
+    1. 台股日盤：週一至週五 08:45 ~ 13:45
+    2. 台指期夜盤：週一至週五 15:00 ~ 次日 05:00
+    3. 美股市場 (含盤前盤後)：週一至週五 台灣時間 16:00 ~ 次日 05:00
+    實質全球休市時段僅為：週末 (週六清晨 05:00 ~ 週一上午 08:30)
+    """
+    from datetime import datetime, timezone, timedelta
+    tz_tw = timezone(timedelta(hours=8))
+    now_tw = datetime.now(timezone.utc).astimezone(tz_tw)
+    weekday = now_tw.weekday()  # 0=週一, ..., 4=週五, 5=週六, 6=週日
+    hour = now_tw.hour
+    minute = now_tw.minute
+
+    # 週六 05:00 以後進入週末完全休市
+    if weekday == 5 and (hour > 5 or (hour == 5 and minute >= 5)):
+        return False
+    # 週日整天完全休市
+    if weekday == 6:
+        return False
+    # 週一上午 08:30 以前完全休市
+    if weekday == 0 and (hour < 8 or (hour == 8 and minute < 30)):
+        return False
+
+    return True
+
+
 async def price_updater_loop():
     global loop_count
     # 延遲 5 秒啟動，讓 FastAPI 完成初始化
     await asyncio.sleep(5)
     while True:
         try:
-            # 支援環境變數停用背景輪詢 (防止雲端平台如 HF Spaces 風控標記為爬蟲)
+            # 支援環境變數停用背景輪詢
             if os.environ.get("DISABLE_BACKGROUND_UPDATER", "").lower() in ("1", "true"):
                 await asyncio.sleep(300)
                 continue
 
-            # 智慧盤中時段判定：非開盤時間 (夜間/週末) 且已完成首輪更新時，大幅降頻休眠
-            market_active = is_taiwan_market_hours()
+            # 智慧多市場時段判定：僅在週末全球完全休市 (週六05:00~週一08:30) 且已完成首輪時休眠
+            market_active = is_any_market_active()
             if not market_active and loop_count > 0:
-                # 閉盤時段每 15 分鐘檢查一次即可，大幅降低外網連線次數避免被封
+                # 週末休市每 15 分鐘檢查一次，平日交易日 (含台指夜盤與美股) 全時段即時更新
                 await asyncio.sleep(900)
                 continue
 
@@ -157,8 +185,8 @@ async def price_updater_loop():
         except Exception as e:
             print(f"背景價格更新程序出錯: {e}")
             
-        # 盤中每 60 秒執行一次；非交易時段休眠 15 分鐘，避免觸發雲端平台爬蟲濫用防護
-        sleep_interval = 60 if is_taiwan_market_hours() else 900
+        # 平日市場活躍期 (台股日盤/夜盤/美股) 每 60 秒高頻即時更新；週末全球休市休眠 15 分鐘
+        sleep_interval = 60 if is_any_market_active() else 900
         await asyncio.sleep(sleep_interval)
 
 
