@@ -70,6 +70,18 @@ async def price_updater_loop():
     await asyncio.sleep(5)
     while True:
         try:
+            # 支援環境變數停用背景輪詢 (防止雲端平台如 HF Spaces 風控標記為爬蟲)
+            if os.environ.get("DISABLE_BACKGROUND_UPDATER", "").lower() in ("1", "true"):
+                await asyncio.sleep(300)
+                continue
+
+            # 智慧盤中時段判定：非開盤時間 (夜間/週末) 且已完成首輪更新時，大幅降頻休眠
+            market_active = is_taiwan_market_hours()
+            if not market_active and loop_count > 0:
+                # 閉盤時段每 15 分鐘檢查一次即可，大幅降低外網連線次數避免被封
+                await asyncio.sleep(900)
+                continue
+
             # A. 從 Supabase 取得目前所有正在追蹤的股票
             response = await asyncio.to_thread(lambda: supabase.table("watchlist").select("*").execute())
             rows = response.data if response.data else []
@@ -145,8 +157,9 @@ async def price_updater_loop():
         except Exception as e:
             print(f"背景價格更新程序出錯: {e}")
             
-        # 每 60 秒執行一次
-        await asyncio.sleep(60)
+        # 盤中每 60 秒執行一次；非交易時段休眠 15 分鐘，避免觸發雲端平台爬蟲濫用防護
+        sleep_interval = 60 if is_taiwan_market_hours() else 900
+        await asyncio.sleep(sleep_interval)
 
 
 def get_or_create_default_user_and_watchlist():
