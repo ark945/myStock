@@ -1915,8 +1915,13 @@ async def get_chip_whale_matrix(date: Optional[str] = None, top_n: int = 10):
                 strategy = "月線波段定海神針 (籌碼高度鎖定，沿均線順勢持有)"
                 strategy_color = "#38bdf8"
             elif "急行軍" in m_tag or (amt_10d and (amt_5d / amt_10d) >= 0.85):
-                strategy = "短線瘋狂點火 (突破前夕急行軍，時效爆發力極高)"
-                strategy_color = "#fb7185"
+                dev = float(w.get("cost_deviation_pct", 0)) if w.get("cost_deviation_pct") is not None else 0.0
+                if dev > 12.0:
+                    strategy = f"高檔乖離急行軍 (偏離成本 +{dev:.1f}%，慎防拉高竭盡)"
+                    strategy_color = "#f43f5e"
+                else:
+                    strategy = "短線瘋狂點火 (突破前夕急行軍，時效爆發力極高)"
+                    strategy_color = "#fb7185"
             else:
                 strategy = "穩健加碼佈局 (主力持續有節奏建倉)"
                 strategy_color = "#34d399"
