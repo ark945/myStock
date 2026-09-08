@@ -1922,14 +1922,24 @@ async def get_chip_whale_matrix(date: Optional[str] = None, top_n: int = 10):
         )
 
         map_10d = {}
+        map_10d_sym = {}
         for r in (res_10d.data or []):
-            if r.get("broker_id"): map_10d[(r["symbol"], str(r["broker_id"]))] = float(r["net_amt_yi"])
-            if r.get("broker_name"): map_10d[(r["symbol"], str(r["broker_name"]))] = float(r["net_amt_yi"])
+            sym_r = str(r.get("symbol", ""))
+            amt_r = float(r.get("net_amt_yi") or 0)
+            if r.get("broker_id"): map_10d[(sym_r, str(r["broker_id"]))] = amt_r
+            if r.get("broker_name"): map_10d[(sym_r, str(r["broker_name"]))] = amt_r
+            if sym_r not in map_10d_sym or amt_r > map_10d_sym[sym_r]:
+                map_10d_sym[sym_r] = amt_r
 
         map_20d = {}
+        map_20d_sym = {}
         for r in (res_20d.data or []):
-            if r.get("broker_id"): map_20d[(r["symbol"], str(r["broker_id"]))] = float(r["net_amt_yi"])
-            if r.get("broker_name"): map_20d[(r["symbol"], str(r["broker_name"]))] = float(r["net_amt_yi"])
+            sym_r = str(r.get("symbol", ""))
+            amt_r = float(r.get("net_amt_yi") or 0)
+            if r.get("broker_id"): map_20d[(sym_r, str(r["broker_id"]))] = amt_r
+            if r.get("broker_name"): map_20d[(sym_r, str(r["broker_name"]))] = amt_r
+            if sym_r not in map_20d_sym or amt_r > map_20d_sym[sym_r]:
+                map_20d_sym[sym_r] = amt_r
 
         matrix = []
         for idx, w in enumerate(whales):
@@ -1938,11 +1948,24 @@ async def get_chip_whale_matrix(date: Optional[str] = None, top_n: int = 10):
             bname = str(w.get("broker_name") or "")
 
             amt_5d = float(w.get("net_amt_yi", 0))
-            amt_10d = map_10d.get((sym, bid), map_10d.get((sym, bname), None))
-            amt_20d = map_20d.get((sym, bid), map_20d.get((sym, bname), None))
+            amt_10d = map_10d.get((sym, bid), map_10d.get((sym, bname), map_10d_sym.get(sym, None)))
+            amt_20d = map_20d.get((sym, bid), map_20d.get((sym, bname), map_20d_sym.get(sym, None)))
 
             m_tag = str(w.get("persona_tag") or "")
-            if not m_tag or m_tag == "None":
+            a_guide = str(w.get("action_guide") or "")
+
+            # ★ 巨鯨防護濾網：百億/數十億級巨鯨嚴禁判定為游資或隔日沖
+            if amt_5d >= 10.0:
+                if not m_tag or m_tag == "None" or "游資" in m_tag or "短點火" in m_tag:
+                    m_tag = "🐳 權值巨鯨重押"
+                if not a_guide or "隔日沖" in a_guide or "短線熱錢" in a_guide:
+                    a_guide = "百億級巨鯨大部隊重金押注，屬機構級權值控盤，建議沿均線或成本區順勢跟隨"
+            elif amt_5d >= 5.0:
+                if not m_tag or m_tag == "None" or "游資" in m_tag:
+                    m_tag = "🔥 大戶波段突襲"
+                if not a_guide or "隔日沖" in a_guide or "短線熱錢" in a_guide:
+                    a_guide = "數十億級主力強勢進駐突襲，資金動能強勁，沿短期均線順勢布局"
+            elif not m_tag or m_tag == "None":
                 if amt_10d and amt_10d > 0:
                     pct = (amt_5d / amt_10d) * 100
                     m_tag = f"🚀 急行軍 ({pct:.0f}%)" if pct >= 80 else (f"🌊 勻速波段 ({pct:.0f}%)" if pct >= 40 else f"⏳ 放緩 ({pct:.0f}%)")
@@ -1963,9 +1986,15 @@ async def get_chip_whale_matrix(date: Optional[str] = None, top_n: int = 10):
                 else:
                     strategy = "短線瘋狂點火 (突破前夕急行軍，時效爆發力極高)"
                     strategy_color = "#fb7185"
+            elif amt_5d >= 10.0:
+                strategy = "百億巨鯨控盤 (機構級重押，具極佳防守支撐)"
+                strategy_color = "#38bdf8"
             else:
                 strategy = "穩健加碼佈局 (主力持續有節奏建倉)"
                 strategy_color = "#34d399"
+
+            # 修正張數欄位名稱 (對齊 Supabase 的 net_vol_sheets)
+            raw_vol = w.get("net_vol_sheets") if w.get("net_vol_sheets") is not None else w.get("net_shares", 0)
 
             matrix.append({
                 "rank": idx + 1,
@@ -1978,14 +2007,14 @@ async def get_chip_whale_matrix(date: Optional[str] = None, top_n: int = 10):
                 "net_amt_5d": amt_5d,
                 "net_amt_10d": amt_10d,
                 "net_amt_20d": amt_20d,
-                "net_shares_5d": w.get("net_shares", 0),
+                "net_shares_5d": round(float(raw_vol or 0)),
                 "buy_avg_price": w.get("buy_avg_price"),
                 "close_price": w.get("close_price") or w.get("buy_avg_price"),
                 "ignition_date": w.get("ignition_date"),
                 "momentum_tag": m_tag,
                 "strategy": strategy,
                 "strategy_color": strategy_color,
-                "action_guide": w.get("action_guide", "波段巨鯨重押，建議沿主力成本線分批逢低佈局。")
+                "action_guide": a_guide or "波段巨鯨重押，建議沿主力成本線分批逢低佈局。"
             })
 
         return {"success": True, "data": matrix, "date": date, "trade_date": date}
