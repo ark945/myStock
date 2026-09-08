@@ -4,7 +4,9 @@
  */
 
 // ========== Constants ==========
-const API_BASE = "";
+const API_BASE = (typeof window !== "undefined" && (window.location.hostname.includes("hf.space") || window.location.hostname.includes("huggingface.co")))
+    ? "https://ark945-mystock.onrender.com"
+    : "";
 
 // ========== State ==========
 // ========== State ==========
@@ -2601,7 +2603,7 @@ function renderMarketStocksTable(tbodyId, stocksData) {
 // 5. Quick Add Stock Function
 async function quickAddStock(symbol, name, market) {
     try {
-        const response = await fetch("/api/watchlist", {
+        const response = await fetch(`${API_BASE}/api/watchlist`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -2803,7 +2805,7 @@ async function loadChipDates() {
     if (!select) return;
 
     try {
-        const resp = await fetch("/api/chip/dates");
+        const resp = await fetch(`${API_BASE}/api/chip/dates`);
         const res = await resp.json();
         if (res.success && res.dates && res.dates.length > 0) {
             select.innerHTML = res.dates.map((d, idx) => {
@@ -2977,7 +2979,7 @@ async function loadChipSummaryData() {
     loadChipWhaleMatrixData("chipWhaleMatrixSummaryContainer");
 
     try {
-        const resp = await fetch(`/api/chip/summary?date=${chipCurrentDate}`);
+        const resp = await fetch(`${API_BASE}/api/chip/summary?date=${chipCurrentDate}`);
         const res = await resp.json();
         if (res.success && res.data) {
             const d = res.data;
@@ -3036,7 +3038,7 @@ async function loadChipSummaryData() {
         }
 
         // 載入焦點精選 (取 20 日吸籌 Top 3)
-        const accumResp = await fetch(`/api/chip/accumulation?date=${chipCurrentDate}&period=20`);
+        const accumResp = await fetch(`${API_BASE}/api/chip/accumulation?date=${chipCurrentDate}&period=20`);
         const accumRes = await accumResp.json();
         if (accumRes.success && accumRes.data && accumRes.data.length > 0) {
             gridEl.innerHTML = accumRes.data.slice(0, 4).map(item => createAccumCardHtml(item)).join("");
@@ -3056,7 +3058,7 @@ async function loadChipAccumulationData() {
     gridEl.innerHTML = `<div class="chip-loading">⏳ 正在載入 ${chipCurrentPeriod} 日波段吸籌數據...</div>`;
 
     try {
-        const resp = await fetch(`/api/chip/accumulation?date=${chipCurrentDate}&period=${chipCurrentPeriod}&sort_by=${chipAccumSort}`);
+        const resp = await fetch(`${API_BASE}/api/chip/accumulation?date=${chipCurrentDate}&period=${chipCurrentPeriod}&sort_by=${chipAccumSort}`);
         const res = await resp.json();
         if (res.success && res.data && res.data.length > 0) {
             chipAccumDataCache = res.data;
@@ -3224,7 +3226,7 @@ async function loadChipExitData() {
     gridEl.innerHTML = `<div class="chip-loading">⏳ 正在載入主力出貨下車數據...</div>`;
 
     try {
-        const resp = await fetch(`/api/chip/exit?date=${chipCurrentDate}`);
+        const resp = await fetch(`${API_BASE}/api/chip/exit?date=${chipCurrentDate}`);
         const res = await resp.json();
         if (res.success && res.data && res.data.length > 0) {
             gridEl.innerHTML = res.data.map(item => `
@@ -3545,7 +3547,7 @@ async function loadChipVwapData() {
     gridEl.innerHTML = `<div class="chip-loading">⏳ 正在載入尾盤放量站上 VWAP 數據...</div>`;
 
     try {
-        const resp = await fetch(`/api/chip/vwap?date=${chipCurrentDate}`);
+        const resp = await fetch(`${API_BASE}/api/chip/vwap?date=${chipCurrentDate}`);
         const res = await resp.json();
         if (res.success && res.data && res.data.length > 0) {
             chipVwapRawData = res.data;
@@ -3899,7 +3901,7 @@ async function loadChipWhaleMatrixData(targetContainerId = "chipWhaleMatrixConta
     container.innerHTML = `<div class="chip-loading" style="padding: 24px; text-align: center; color: #38bdf8;">⏳ 正在計算 5d/10d/20d 三維聯動巨鯨籌碼矩陣...</div>`;
 
     try {
-        const resp = await fetch(`/api/chip/whale-matrix?date=${chipCurrentDate}`);
+        const resp = await fetch(`${API_BASE}/api/chip/whale-matrix?date=${chipCurrentDate}`);
         const res = await resp.json();
         if (res.success && res.data && res.data.length > 0) {
             container.innerHTML = renderWhaleMatrixHtml(res.data, res.trade_date);
@@ -4275,7 +4277,7 @@ async function loadAndRenderKlineData(symbol, period, interval) {
             }
         }
 
-        const resp = await fetch(`/api/kline/${symbol}?period=${period}&interval=${interval}`);
+        const resp = await fetch(`${API_BASE}/api/kline/${symbol}?period=${period}&interval=${interval}`);
         const data = await resp.json();
 
         if (spinner) spinner.classList.add("hide");
