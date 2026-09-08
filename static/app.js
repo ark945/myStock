@@ -2781,6 +2781,54 @@ async function loadChipAccumulationData() {
     }
 }
 
+// 取得主力動能與特徵標籤之量化遊戲規則 Tooltip
+function getChipTagTooltip(tag) {
+    if (!tag) return "【主力籌碼動能】以 5 日 vs 10 日跨週期比對主力資金推進加速度與成本乖離度。";
+    const t = String(tag);
+    if (t.includes("突破急行軍")) {
+        return "【🚀 突破急行軍 (起跑點火)】\n• 量化規則：近 5 日買超佔 10 日 >= 80%，且現價處於主力成本區 (乖離 <= 12%)\n• 籌碼意義：主力短線剛踩深油門暴買突破，起漲爆發力極強！\n• 操作指引：剛發動，建議拉回主力加權成本附近防守佈局。";
+    } else if (t.includes("高檔乖離急行軍")) {
+        return "【🚨 高檔乖離急行軍 (高危險警示)】\n• 量化規則：近 5 日買超佔 10 日 >= 80%，但現價偏離主力成本 > 12%\n• 籌碼意義：短線雖暴買，但現價已高檔噴出，慎防主力拉高竭盡買盤或誘多！\n• 操作指引：切忌盲目追高，持股者宜提高警覺，留意爆量長黑分批停利。";
+    } else if (t.includes("破發逆勢急行軍")) {
+        return "【💎 破發逆勢急行軍 (護盤加碼)】\n• 量化規則：近 5 日買超佔 10 日 >= 80%，但現價跌破主力成本 (< -5%)\n• 籌碼意義：主力於成本下方逆勢暴買加碼，自救護盤意圖強烈！\n• 操作指引：具高性價比安全防守點位，留意反彈契機。";
+    } else if (t.includes("波段高檔推升")) {
+        return "【🌊 波段高檔推升】\n• 量化規則：近 5 日買超佔 10 日 40% ~ 80%，但成本乖離 > 15%\n• 籌碼意義：主力持續勻速買超，但股價已推升至高檔區。\n• 操作指引：持股者沿均線移動停利，空手者切勿市價追高。";
+    } else if (t.includes("勻速波段")) {
+        return "【🌊 勻速波段建倉】\n• 量化規則：近 5 日買超佔 10 日 40% ~ 80%，且成本乖離健康 (<= 15%)\n• 籌碼意義：主力雙週內有紀律持續吃貨，籌碼沉澱紮實、結構最健康。\n• 操作指引：標準機構法人認養型態，適合沿雙週均線順勢持有。";
+    } else if (t.includes("熄火")) {
+        return "【⚠️ 買盤已熄火 (警戒)】\n• 量化規則：近 5 日買超佔 10 日 <= 20%，或近 5 日轉為賣超\n• 籌碼意義：10 日總額看似龐大，但近 5 日買盤停滯，主力已吃飽收手待散戶抬轎。\n• 操作指引：雙週買超榜上的高危陷阱！嚴禁追高，破線停損。";
+    } else if (t.includes("游資高檔搶短")) {
+        return "【⚡ 游資高檔搶短】\n• 量化規則：前段無長莊底倉，且成本乖離 > 10%\n• 籌碼意義：短線熱錢或隔日沖高檔搶短，隔日極易開高反手倒貨。\n• 作戰指引：嚴格落實當日/隔日移動停利，避免留倉接刀。";
+    } else if (t.includes("游資短點火") || t.includes("游資初點火")) {
+        return "【⚡ 游資短點火】\n• 量化規則：前段無長莊底倉，低檔極短線熱錢或隔日沖快速點火\n• 籌碼意義：短線資金進駐拉抬，但無中長線籌碼鎖碼支撐。\n• 作戰指引：適合超短線順勢快進快出，宜設嚴格移動停利。";
+    } else if (t.includes("放緩")) {
+        return "【⏳ 買盤節奏放緩】\n• 量化規則：近 5 日買超佔 10 日 20% ~ 40%\n• 籌碼意義：主力吃貨節奏有所放緩，進入整理換手期。\n• 作戰指引：建議觀察下檔均線支撐強度，不宜急躁追價。";
+    } else if (t.includes("軋空")) {
+        return "【🔥 軋空強勢股】\n• 量化規則：券資比 >= 25% 且 融券持續增加或高檔鈍化\n• 籌碼意義：空方融券遭多方主力強鎖籌碼逼迫認賠回補，易引發噴射行情。\n• 作戰指引：高波動標的，切勿盲目放空；持股者沿短均線移動停利。";
+    } else if (t.includes("籌碼集中") || t.includes("極度集中")) {
+        return "【💎 籌碼極度集中】\n• 量化規則：買賣家數差為顯著負數 (籌碼從多數散戶流向少數主力) 且千張大戶持股增加\n• 籌碼意義：籌碼沉澱紮實、浮額清洗乾淨，主力掌控度極高。\n• 作戰指引：主力長線控盤標的，回測短期均線量縮時為極佳防守買點。";
+    }
+    return `【${t}】\n主力籌碼動能標籤，以 5d vs 10d 跨週期加速度與成本乖離度進行量化判定。`;
+}
+
+// 取得巨鯨戰略標籤 Tooltip
+function getChipStrategyTooltip(strat) {
+    if (!strat) return "【操盤戰略定性】以 5d/10d/20d 三維資金交叉研判主力戰略意圖。";
+    const s = String(strat);
+    if (s.includes("長莊二次總攻")) {
+        return "【🏰 長莊二次總攻】\n• 觸發規則：20日累積買超 >= 30億 且 5日再度加碼 >= 10億\n• 籌碼意義：月線長波底倉渾厚，主力短線再度狂砸發動二次總攻！\n• 實戰指引：頂級主力鎖碼攻擊型態，波段爆發力最強。";
+    } else if (s.includes("月線波段定海神針")) {
+        return "【💎 月線波段定海神針】\n• 觸發規則：20日累積買超 >= 15億 且 5日佔比 <= 60%\n• 籌碼意義：月線籌碼高度鎖定，主力不急不徐勻速推升。\n• 實戰指引：長線多頭基石，沿均線順勢持有。";
+    } else if (s.includes("高檔乖離急行軍")) {
+        return "【🚨 高檔乖離急行軍 (風險警示)】\n• 觸發規則：5日佔10日 >= 85% 但偏離主力成本 > 12%\n• 籌碼意義：短線暴量急行軍，但現價已推升過高，慎防竭盡拉高誘多！\n• 實戰指引：持股者宜提高警覺，分批移動停利，切忌市價盲目追高。";
+    } else if (s.includes("短線瘋狂點火")) {
+        return "【🚀 短線瘋狂點火】\n• 觸發規則：5日佔10日比重 >= 85% 且成本乖離安全\n• 籌碼意義：雙週買盤幾乎全在近 2~3 天狂砸突破，時效爆發力極高！\n• 實戰指引：短線熱度極高，可沿主力加權成本順勢布局。";
+    } else if (s.includes("穩健加碼佈局")) {
+        return "【🌊 穩健加碼佈局】\n• 觸發規則：主力跨週期有節奏持續建倉\n• 籌碼意義：籌碼分佈均勻健康，無極端暴衝或熄火跡象。\n• 實戰指引：中長線穩健標的，回測均線分批布局。";
+    }
+    return `【${s}】\n權值巨鯨跨週期操盤戰略定性。`;
+}
+
 function renderAccumCards(list) {
     const gridEl = document.getElementById("chipAccumGrid");
     if (!gridEl) return;
@@ -2803,6 +2851,9 @@ function createAccumCardHtml(item) {
         ? `<span class="chip-badge-item" style="background: rgba(168, 85, 247, 0.2); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.5); font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px; white-space: nowrap;">🏰 大戶 ${Number(item.large_shareholder_pct).toFixed(1)}%</span>` 
         : '';
 
+    const pTag = item.persona_tag || "波段主力";
+    const pTooltip = getChipTagTooltip(pTag);
+
     return `
         <div class="chip-card glassmorphism" 
             data-kline-symbol="${item.symbol}" 
@@ -2821,7 +2872,10 @@ function createAccumCardHtml(item) {
                 <div style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
                     ${shortRatioBadge}
                     ${tdccBadge}
-                    <div class="chip-persona-badge">${item.persona_tag || "波段主力"}</div><button class="btn-open-kline" title="查看動態日 K 線">📈 K線</button>
+                    <div class="chip-persona-badge has-tooltip" title="${escapeHtml(pTooltip)}" style="cursor:help;">
+                        ${escapeHtml(pTag)} <span class="tag-info-icon" style="font-size:10px; opacity:0.8;">ⓘ</span>
+                    </div>
+                    <button class="btn-open-kline" title="查看動態日 K 線">📈 K線</button>
                 </div>
             </div>
 
@@ -3488,7 +3542,7 @@ async function loadChipDerivativesData(signalType = "ALL") {
                             <span class="chip-stock-name" style="font-size: 17px; font-weight: 800; color: #f8fafc; margin: 0 4px;">${stockName}</span>
                             <span class="chip-market-badge" style="font-size: 11px; padding: 2px 6px; background: rgba(255,255,255,0.1); border-radius: 4px; color: #94a3b8;">${marketName}</span>
                         </div>
-                        <div class="chip-persona-badge" style="background: ${tagBg}; color: ${tagColor}; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; border: 1px solid ${borderColor};">${personaTag}</div>
+                        <div class="chip-persona-badge has-tooltip" title="${escapeHtml(getChipTagTooltip(personaTag))}" style="background: ${tagBg}; color: ${tagColor}; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; border: 1px solid ${borderColor}; cursor: help;">${personaTag} <span class="tag-info-icon" style="font-size:10px; opacity:0.8;">ⓘ</span></div>
                     </div>
                     <div class="chip-card-body">
                         <div class="chip-metric-row main" style="display: flex; justify-content: space-between; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.08);">
@@ -3632,8 +3686,8 @@ function renderWhaleMatrixHtml(matrixList, tradeDate) {
                 </td>
                 <td class="whale-col-char">
                     <div class="whale-char-header" style="display:flex; gap:6px; align-items:center; margin-bottom:4px; flex-wrap:wrap;">
-                        <span class="whale-char-badge">${escapeHtml(momentumTag)}</span>
-                        <span class="whale-strat-pill" style="font-size:11px; font-weight:700; color:${stratColor}; background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:4px;">${escapeHtml(stratTitle)}</span>
+                        <span class="whale-char-badge has-tooltip" title="${escapeHtml(getChipTagTooltip(momentumTag))}" style="cursor:help;">${escapeHtml(momentumTag)} <span class="tag-info-icon" style="font-size:10px; opacity:0.8;">ⓘ</span></span>
+                        <span class="whale-strat-pill has-tooltip" title="${escapeHtml(getChipStrategyTooltip(stratTitle))}" style="font-size:11px; font-weight:700; color:${stratColor}; background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:4px; cursor:help;">${escapeHtml(stratTitle)} <span class="tag-info-icon" style="font-size:10px; opacity:0.8;">ⓘ</span></span>
                     </div>
                     <div class="whale-guidance-text">${escapeHtml(actionGuide)}</div>
                 </td>
