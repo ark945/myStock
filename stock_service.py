@@ -76,40 +76,61 @@ def search_stock(keyword: str, max_results: int = 10) -> list[dict]:
     """
     搜尋股票，回傳符合條件的清單。
     支援台股代號/名稱與美股代號/公司名稱。
+    具備智慧權重排序機制，普通股票與 ETF 優先於權證，完全匹配優先。
     """
     keyword = keyword.strip()
     if not keyword:
         return []
 
-    results = []
+    kw_lower = keyword.lower()
+    candidates = []
 
-    # --- 台股搜尋 ---
-    # 1. 精確代號搜尋
-    if keyword in twstock.codes:
-        info = twstock.codes[keyword]
-        results.append({
-            "symbol": keyword,
+    # --- 台股搜尋 (twstock.codes 全覆蓋計分排序) ---
+    for code, info in twstock.codes.items():
+        name_lower = (info.name or "").lower()
+        code_lower = (code or "").lower()
+
+        # 基礎匹配判定
+        if kw_lower not in name_lower and kw_lower not in code_lower:
+            continue
+
+        score = 0
+
+        # 1. 匹配度權重 (精確匹配 > 開頭匹配 > 包含)
+        if name_lower == kw_lower or code_lower == kw_lower:
+            score += 50000
+        elif name_lower.startswith(kw_lower):
+            score += 20000 - len(info.name) * 50
+        elif code_lower.startswith(kw_lower):
+            score += 15000 - len(code) * 50
+        else:
+            score += 5000 - len(info.name) * 20
+
+        # 2. 標的類型權重 (普通股票/ETF > 特別股/存託憑證 > 權證)
+        is_warrant = "權證" in (info.type or "") or (
+            len(code) == 6 and code[:2] in ("03", "04", "05", "06", "07", "08", "70", "71", "72", "73")
+        )
+        if not is_warrant:
+            if info.type == "股票" or len(code) == 4:
+                score += 30000  # 普通股票最優先
+            elif "ETF" in (info.type or "") or "臺灣存託憑證" in (info.type or ""):
+                score += 20000  # ETF 次之
+            else:
+                score += 10000  # 特別股或其他
+        else:
+            score += 0  # 權證墊底，避免洗版
+
+        candidates.append((score, {
+            "symbol": code,
             "name": info.name,
             "exchange": info.market,
             "market": "TW",
             "type": info.type,
-        })
+        }))
 
-    # 2. 名稱模糊搜尋（在 twstock.codes 中搜尋）
-    if len(results) == 0 or not _is_tw_stock(keyword):
-        for code, info in twstock.codes.items():
-            if keyword.lower() in info.name.lower() or keyword.lower() in code.lower():
-                # 避免重複
-                if not any(r["symbol"] == code for r in results):
-                    results.append({
-                        "symbol": code,
-                        "name": info.name,
-                        "exchange": info.market,
-                        "market": "TW",
-                        "type": info.type,
-                    })
-            if len(results) >= max_results:
-                break
+    # 依照權重分數由高至低排序
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    results = [c[1] for c in candidates[:max_results]]
 
     # --- 美股/外國股搜尋（如果台股結果不足或看起來像英文）---
     if len(results) < max_results and (
