@@ -2791,6 +2791,7 @@ let chipCurrentSubtab = "summary";
 let chipCurrentPeriod = 20;
 let chipAccumDataCache = [];
 let chipAccumSort = "score"; // 'score' (預設川湖評分/中小型飆股) | 'amount' (金額優先)
+let chipAccumPriceRange = "ALL"; // 'ALL' (全部) | 'UNDER_100' (100元以下) | '100_999' (100-999元) | 'ABOVE_1000' (1000元以上)
 
 // 1. 初始化戰情室
 async function initChipWarRoom() {
@@ -2869,13 +2870,8 @@ function setupChipEvents() {
     // 吸籌搜尋框即時過濾
     const searchInput = document.getElementById("chipAccumSearch");
     if (searchInput) {
-        searchInput.addEventListener("input", (e) => {
-            const query = e.target.value.trim().toLowerCase();
-            renderAccumCards(chipAccumDataCache.filter(item => 
-                (item.symbol && item.symbol.toLowerCase().includes(query)) ||
-                (item.stock_name && item.stock_name.toLowerCase().includes(query)) ||
-                (item.broker_name && item.broker_name.toLowerCase().includes(query))
-            ));
+        searchInput.addEventListener("input", () => {
+            applyAccumFilters();
         });
     }
 
@@ -2886,6 +2882,16 @@ function setupChipEvents() {
             pill.classList.add("active");
             chipAccumSort = pill.getAttribute("data-sort") || "score";
             loadChipAccumulationData();
+        });
+    });
+
+    // 股價區間篩選切換 (全部 / 100元以下 / 100-999元 / 1000元以上)
+    document.querySelectorAll(".chip-price-pill").forEach(pill => {
+        pill.addEventListener("click", () => {
+            document.querySelectorAll(".chip-price-pill").forEach(p => p.classList.remove("active"));
+            pill.classList.add("active");
+            chipAccumPriceRange = pill.getAttribute("data-price-range") || "ALL";
+            applyAccumFilters();
         });
     });
 
@@ -3062,7 +3068,7 @@ async function loadChipAccumulationData() {
         const res = await resp.json();
         if (res.success && res.data && res.data.length > 0) {
             chipAccumDataCache = res.data;
-            renderAccumCards(chipAccumDataCache);
+            applyAccumFilters();
         } else {
             chipAccumDataCache = [];
             gridEl.innerHTML = `<div class="chip-empty">${chipCurrentPeriod} 日吸籌週期查無符合門檻標的</div>`;
@@ -3121,11 +3127,46 @@ function getChipStrategyTooltip(strat) {
     return `【${s}】\n權值巨鯨跨週期操盤戰略定性。`;
 }
 
+// 執行吸籌標的綜合過濾 (搜尋框 + 股價區間)
+function applyAccumFilters() {
+    const searchInput = document.getElementById("chipAccumSearch");
+    const query = searchInput ? searchInput.value.trim().toLowerCase() : "";
+
+    const filtered = chipAccumDataCache.filter(item => {
+        // 1. 關鍵字搜尋 (代號、名稱、主力券商)
+        if (query) {
+            const matchQuery = (item.symbol && item.symbol.toLowerCase().includes(query)) ||
+                               (item.stock_name && item.stock_name.toLowerCase().includes(query)) ||
+                               (item.broker_name && item.broker_name.toLowerCase().includes(query));
+            if (!matchQuery) return false;
+        }
+
+        // 2. 股價區間過濾 (全部 / 100元以下 / 100-999元 / 1000元以上)
+        if (chipAccumPriceRange && chipAccumPriceRange !== "ALL") {
+            const price = (item.close_price != null && !isNaN(item.close_price) && Number(item.close_price) > 0)
+                ? Number(item.close_price)
+                : Number(item.buy_avg_price || 0);
+
+            if (chipAccumPriceRange === "UNDER_100") {
+                if (price >= 100) return false;
+            } else if (chipAccumPriceRange === "100_999") {
+                if (price < 100 || price >= 1000) return false;
+            } else if (chipAccumPriceRange === "ABOVE_1000") {
+                if (price < 1000) return false;
+            }
+        }
+
+        return true;
+    });
+
+    renderAccumCards(filtered);
+}
+
 function renderAccumCards(list) {
     const gridEl = document.getElementById("chipAccumGrid");
     if (!gridEl) return;
-    if (list.length === 0) {
-        gridEl.innerHTML = `<div class="chip-empty">無符合搜尋條件之標的</div>`;
+    if (!list || list.length === 0) {
+        gridEl.innerHTML = `<div class="chip-empty">無符合篩選條件之標的</div>`;
         return;
     }
     gridEl.innerHTML = list.map(item => createAccumCardHtml(item)).join("");

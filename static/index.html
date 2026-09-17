@@ -389,9 +389,18 @@
                         <input type="text" id="chipAccumSearch" placeholder="搜尋股票代號或名稱..." class="chip-input-search">
                     </div>
                 </div>
-                <div class="chip-sort-filter" style="display: flex; gap: 8px; margin-bottom: 16px;">
-                    <button class="chip-accum-sort-pill active" data-sort="score">🏆 依川湖評分 (中小型高純度飆股)</button>
-                    <button class="chip-accum-sort-pill" data-sort="amount">💰 依買超金額 (大戶權值)</button>
+                <div class="chip-sort-filter" style="display: flex; gap: 8px; margin-bottom: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <button class="chip-accum-sort-pill active" data-sort="score">🏆 依川湖評分 (中小型高純度飆股)</button>
+                        <button class="chip-accum-sort-pill" data-sort="amount">💰 依買超金額 (大戶權值)</button>
+                    </div>
+                    <div class="chip-price-filter" style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                        <span class="chip-filter-label" style="font-size: 12px; margin-right: 2px;">💵 股價篩選：</span>
+                        <button class="chip-price-pill active" data-price-range="ALL">全部</button>
+                        <button class="chip-price-pill" data-price-range="UNDER_100">100元以下</button>
+                        <button class="chip-price-pill" data-price-range="100_999">100-999元</button>
+                        <button class="chip-price-pill" data-price-range="ABOVE_1000">1000元以上</button>
+                    </div>
                 </div>
                 <div class="chip-cards-grid" id="chipAccumGrid">
                     <!-- 動態載入吸籌卡片 -->

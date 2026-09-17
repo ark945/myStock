@@ -1705,7 +1705,7 @@ async def get_chip_accumulation(date: Optional[str] = None, period: int = 20, so
             .eq("trade_date", date)
             .eq("period_days", period)
             .order(order_col, desc=order_desc)
-            .limit(50)
+            .limit(100)
             .execute()
         )
         return {"success": True, "data": res.data or [], "date": date, "period": period, "sort_by": sort_by}
