@@ -1861,8 +1861,8 @@ async def get_chip_derivatives(date: Optional[str] = None, signal_type: Optional
 
 
 @app.get("/api/chip/whale-matrix")
-async def get_chip_whale_matrix(date: Optional[str] = None, top_n: int = 10):
-    """取得指定日期的權值巨鯨 5d / 10d / 20d 籌碼追蹤矩陣"""
+async def get_chip_whale_matrix(date: Optional[str] = None, top_n: int = 10, mode: str = "whale"):
+    """取得指定日期的權值巨鯨或中小型艦隊 5d / 10d / 20d 籌碼追蹤矩陣 (mode: whale / fleet)"""
     try:
         if not date:
             latest_res = await asyncio.to_thread(
@@ -1878,29 +1878,72 @@ async def get_chip_whale_matrix(date: Optional[str] = None, top_n: int = 10):
         if not date:
             return {"success": True, "data": []}
 
-        # 1. 抓取該日 5d 依照淨買超金額排序的前 20 名，並依 symbol 去重（每檔龍頭股取金額最大主力席位）
+        is_fleet = mode.lower() in ("fleet", "small_mid", "small")
+
+        # 1. 抓取該日 5d 籌碼訊號
+        # 若為巨鯨模式：依淨買超金額排序前 40 筆
+        # 若為中小型艦隊模式：抓取更多候選訊號後由 Python 進行純度、市值與動能加權過濾
+        fetch_limit = top_n * 4 if not is_fleet else 150
+        order_col = "net_amt_yi" if not is_fleet else "buy_purity_pct"
+
         res_5d = await asyncio.to_thread(
             lambda: supabase.table("chip_accumulation_signals")
             .select("*")
             .eq("trade_date", date)
             .eq("period_days", 5)
-            .order("net_amt_yi", desc=True)
-            .limit(top_n * 4)
+            .order(order_col, desc=True)
+            .limit(fetch_limit)
             .execute()
         )
-        raw_whales = res_5d.data or []
-        if not raw_whales:
-            return {"success": True, "data": [], "date": date}
+        raw_candidates = res_5d.data or []
+        if not raw_candidates:
+            return {"success": True, "data": [], "date": date, "mode": mode}
 
         seen_symbols = set()
         whales = []
-        for w in raw_whales:
-            sym = w.get("symbol")
-            if sym and sym not in seen_symbols:
-                seen_symbols.add(sym)
-                whales.append(w)
-                if len(whales) >= top_n:
-                    break
+
+        if is_fleet:
+            # 中小型艦隊過濾：排除百億級極大權值股，鎖定上櫃 (TPEX) 或純度 >= 65% 之爆發中小型飆股
+            fleet_pool = []
+            for w in raw_candidates:
+                sym = str(w.get("symbol") or "")
+                mkt = str(w.get("market") or "")
+                amt = float(w.get("net_amt_yi") or 0)
+                purity = float(w.get("buy_purity_pct") or 0)
+                tag = str(w.get("persona_tag") or "")
+
+                # 排除特大百億權值 (例如 5d 淨買超超過 15 億的大象)
+                if amt > 15.0:
+                    continue
+                # 門檻：至少有 0.15 億實質資金，且為上櫃股，或買超純度 >= 60%
+                if amt < 0.15:
+                    continue
+                if "櫃" not in mkt and purity < 60.0 and "急行軍" not in tag:
+                    continue
+
+                # 中小型動能評分：純度權重 50% + 金額適度權重 30% + 急行軍/點火標籤 20%
+                score = (purity * 0.5) + min(amt * 10.0, 30.0) + (20.0 if any(k in tag for k in ["急行軍", "點火", "突襲"]) else 0.0)
+                fleet_pool.append((score, w))
+
+            # 依動能綜合評分降序排列
+            fleet_pool.sort(key=lambda x: x[0], reverse=True)
+
+            for _, w in fleet_pool:
+                sym = w.get("symbol")
+                if sym and sym not in seen_symbols:
+                    seen_symbols.add(sym)
+                    whales.append(w)
+                    if len(whales) >= top_n:
+                        break
+        else:
+            # 既有權值巨鯨邏輯：依金額排序取前 top_n
+            for w in raw_candidates:
+                sym = w.get("symbol")
+                if sym and sym not in seen_symbols:
+                    seen_symbols.add(sym)
+                    whales.append(w)
+                    if len(whales) >= top_n:
+                        break
 
         # 2. 抓取該日 10d 與 20d 對應標的/分點的金額
         symbols = list(set(w["symbol"] for w in whales))
@@ -1953,45 +1996,64 @@ async def get_chip_whale_matrix(date: Optional[str] = None, top_n: int = 10):
 
             m_tag = str(w.get("persona_tag") or "")
             a_guide = str(w.get("action_guide") or "")
+            purity = float(w.get("buy_purity_pct") or 0)
 
-            # ★ 巨鯨防護濾網：百億/數十億級巨鯨嚴禁判定為游資或隔日沖
-            if amt_5d >= 10.0:
-                if not m_tag or m_tag == "None" or "游資" in m_tag or "短點火" in m_tag:
-                    m_tag = "🐳 權值巨鯨重押"
-                if not a_guide or "隔日沖" in a_guide or "短線熱錢" in a_guide:
-                    a_guide = "百億級巨鯨大部隊重金押注，屬機構級權值控盤，建議沿均線或成本區順勢跟隨"
-            elif amt_5d >= 5.0:
-                if not m_tag or m_tag == "None" or "游資" in m_tag:
-                    m_tag = "🔥 大戶波段突襲"
-                if not a_guide or "隔日沖" in a_guide or "短線熱錢" in a_guide:
-                    a_guide = "數十億級主力強勢進駐突襲，資金動能強勁，沿短期均線順勢布局"
-            elif not m_tag or m_tag == "None":
-                if amt_10d and amt_10d > 0:
-                    pct = (amt_5d / amt_10d) * 100
-                    m_tag = f"🚀 急行軍 ({pct:.0f}%)" if pct >= 80 else (f"🌊 勻速波段 ({pct:.0f}%)" if pct >= 40 else f"⏳ 放緩 ({pct:.0f}%)")
-                else:
-                    m_tag = "⚡ 突發點火"
-
-            if amt_20d and amt_20d >= 30.0 and amt_5d >= 10.0:
-                strategy = "長莊二次總攻 (長波底倉渾厚，短線爆發力極強)"
-                strategy_color = "#c084fc"
-            elif amt_20d and amt_20d >= 15.0 and (amt_5d / amt_20d) <= 0.6:
-                strategy = "月線波段定海神針 (籌碼高度鎖定，沿均線順勢持有)"
-                strategy_color = "#38bdf8"
-            elif "急行軍" in m_tag or (amt_10d and (amt_5d / amt_10d) >= 0.85):
-                dev = float(w.get("cost_deviation_pct", 0)) if w.get("cost_deviation_pct") is not None else 0.0
-                if dev > 12.0:
-                    strategy = f"高檔乖離急行軍 (偏離成本 +{dev:.1f}%，慎防拉高竭盡)"
-                    strategy_color = "#f43f5e"
-                else:
-                    strategy = "短線瘋狂點火 (突破前夕急行軍，時效爆發力極高)"
+            if is_fleet:
+                # 中小型艦隊專屬定性與指引
+                if purity >= 85.0 and amt_5d >= 1.0:
+                    strategy = "高純度主力控盤 (籌碼鎖定極佳，爆發推升力強)"
                     strategy_color = "#fb7185"
-            elif amt_5d >= 10.0:
-                strategy = "百億巨鯨控盤 (機構級重押，具極佳防守支撐)"
-                strategy_color = "#38bdf8"
+                elif "急行軍" in m_tag or (amt_10d and (amt_5d / amt_10d) >= 0.75):
+                    strategy = "突破前夕急行軍 (短線資金快速聚攏，留意突破爆發)"
+                    strategy_color = "#f43f5e"
+                elif "櫃" in str(w.get("market", "")):
+                    strategy = "上櫃高彈性黑馬 (波段動能顯著，沿成本線持股)"
+                    strategy_color = "#38bdf8"
+                else:
+                    strategy = "中小主力短波點火 (量價配合溫和推升)"
+                    strategy_color = "#34d399"
+
+                if not a_guide or a_guide == "None":
+                    a_guide = "中小型高純度主力點火，沿短均線與成本線順勢跟進，跌破成本嚴設停損。"
             else:
-                strategy = "穩健加碼佈局 (主力持續有節奏建倉)"
-                strategy_color = "#34d399"
+                # ★ 巨鯨防護濾網：百億/數十億級巨鯨嚴禁判定為游資或隔日沖
+                if amt_5d >= 10.0:
+                    if not m_tag or m_tag == "None" or "游資" in m_tag or "短點火" in m_tag:
+                        m_tag = "🐳 權值巨鯨重押"
+                    if not a_guide or "隔日沖" in a_guide or "短線熱錢" in a_guide:
+                        a_guide = "百億級巨鯨大部隊重金押注，屬機構級權值控盤，建議沿均線或成本區順勢跟隨"
+                elif amt_5d >= 5.0:
+                    if not m_tag or m_tag == "None" or "游資" in m_tag:
+                        m_tag = "🔥 大戶波段突襲"
+                    if not a_guide or "隔日沖" in a_guide or "短線熱錢" in a_guide:
+                        a_guide = "數十億級主力強勢進駐突襲，資金動能強勁，沿短期均線順勢布局"
+                elif not m_tag or m_tag == "None":
+                    if amt_10d and amt_10d > 0:
+                        pct = (amt_5d / amt_10d) * 100
+                        m_tag = f"🚀 急行軍 ({pct:.0f}%)" if pct >= 80 else (f"🌊 勻速波段 ({pct:.0f}%)" if pct >= 40 else f"⏳ 放緩 ({pct:.0f}%)")
+                    else:
+                        m_tag = "⚡ 突發點火"
+
+                if amt_20d and amt_20d >= 30.0 and amt_5d >= 10.0:
+                    strategy = "長莊二次總攻 (長波底倉渾厚，短線爆發力極強)"
+                    strategy_color = "#c084fc"
+                elif amt_20d and amt_20d >= 15.0 and (amt_5d / amt_20d) <= 0.6:
+                    strategy = "月線波段定海神針 (籌碼高度鎖定，沿均線順勢持有)"
+                    strategy_color = "#38bdf8"
+                elif "急行軍" in m_tag or (amt_10d and (amt_5d / amt_10d) >= 0.85):
+                    dev = float(w.get("cost_deviation_pct", 0)) if w.get("cost_deviation_pct") is not None else 0.0
+                    if dev > 12.0:
+                        strategy = f"高檔乖離急行軍 (偏離成本 +{dev:.1f}%，慎防拉高竭盡)"
+                        strategy_color = "#f43f5e"
+                    else:
+                        strategy = "短線瘋狂點火 (突破前夕急行軍，時效爆發力極高)"
+                        strategy_color = "#fb7185"
+                elif amt_5d >= 10.0:
+                    strategy = "百億巨鯨控盤 (機構級重押，具極佳防守支撐)"
+                    strategy_color = "#38bdf8"
+                else:
+                    strategy = "穩健加碼佈局 (主力持續有節奏建倉)"
+                    strategy_color = "#34d399"
 
             # 修正張數欄位名稱 (對齊 Supabase 的 net_vol_sheets)
             raw_vol = w.get("net_vol_sheets") if w.get("net_vol_sheets") is not None else w.get("net_shares", 0)
@@ -2000,7 +2062,7 @@ async def get_chip_whale_matrix(date: Optional[str] = None, top_n: int = 10):
                 "rank": idx + 1,
                 "symbol": sym,
                 "stock_name": w.get("stock_name", ""),
-                "industry": w.get("industry", "核心權值"),
+                "industry": w.get("industry", "利基題材" if is_fleet else "核心權值"),
                 "market": w.get("market", "上市"),
                 "broker_name": bname,
                 "broker_id": bid,
@@ -2010,17 +2072,18 @@ async def get_chip_whale_matrix(date: Optional[str] = None, top_n: int = 10):
                 "net_shares_5d": round(float(raw_vol or 0)),
                 "buy_avg_price": w.get("buy_avg_price"),
                 "close_price": w.get("close_price") or w.get("buy_avg_price"),
+                "buy_purity_pct": purity,
                 "ignition_date": w.get("ignition_date"),
                 "momentum_tag": m_tag,
                 "strategy": strategy,
                 "strategy_color": strategy_color,
-                "action_guide": a_guide or "波段巨鯨重押，建議沿主力成本線分批逢低佈局。"
+                "action_guide": a_guide or "波段主力重押，建議沿主力成本線分批逢低佈局。"
             })
 
-        return {"success": True, "data": matrix, "date": date, "trade_date": date}
+        return {"success": True, "data": matrix, "date": date, "trade_date": date, "mode": mode}
     except Exception as e:
-        print(f"Error fetching whale matrix: {e}")
-        return {"success": False, "error": str(e), "data": []}
+        print(f"Error fetching whale/fleet matrix: {e}")
+        return {"success": False, "error": str(e), "data": [], "mode": mode}
 
 
 

@@ -3934,43 +3934,65 @@ async function loadChipDerivativesData(signalType = "ALL") {
     }
 }
 
-// 4.6 載入權值巨鯨籌碼追蹤矩陣 (Whale Matrix)
-async function loadChipWhaleMatrixData(targetContainerId = "chipWhaleMatrixContainer") {
+// 4.6 載入權值巨鯨 / 中小型艦隊籌碼追蹤矩陣 (Whale & Fleet Matrix)
+let chipMatrixCurrentMode = "whale"; // "whale" 或 "fleet"
+
+function switchChipMatrixMode(mode) {
+    chipMatrixCurrentMode = mode;
+    loadChipWhaleMatrixData("chipWhaleMatrixContainer", mode);
+    const sumEl = document.getElementById("chipWhaleMatrixSummaryContainer");
+    if (sumEl) {
+        loadChipWhaleMatrixData("chipWhaleMatrixSummaryContainer", mode);
+    }
+}
+
+async function loadChipWhaleMatrixData(targetContainerId = "chipWhaleMatrixContainer", mode = null) {
     const container = document.getElementById(targetContainerId);
     if (!container) return;
 
-    container.innerHTML = `<div class="chip-loading" style="padding: 24px; text-align: center; color: #38bdf8;">⏳ 正在計算 5d/10d/20d 三維聯動巨鯨籌碼矩陣...</div>`;
+    const currentMode = mode || chipMatrixCurrentMode || "whale";
+    const modeLabel = currentMode === "fleet" ? "中小型爆發艦隊" : "權值巨鯨";
+
+    container.innerHTML = `<div class="chip-loading" style="padding: 24px; text-align: center; color: #38bdf8;">⏳ 正在計算 5d/10d/20d 三維聯動【${modeLabel}】籌碼矩陣...</div>`;
 
     try {
-        const resp = await fetch(`${API_BASE}/api/chip/whale-matrix?date=${chipCurrentDate}`);
+        const resp = await fetch(`${API_BASE}/api/chip/whale-matrix?date=${chipCurrentDate}&mode=${currentMode}`);
         const res = await resp.json();
         if (res.success && res.data && res.data.length > 0) {
-            container.innerHTML = renderWhaleMatrixHtml(res.data, res.trade_date);
+            container.innerHTML = renderWhaleMatrixHtml(res.data, res.trade_date, currentMode);
         } else {
+            const isFleet = currentMode === "fleet";
+            const emptyTitle = isFleet ? "中小型飆股籌碼追蹤矩陣 (Fleet Matrix)" : "權值巨鯨籌碼追蹤矩陣 (Whale Matrix)";
+            const emptyIcon = isFleet ? "🚀" : "🐳";
             container.innerHTML = `
                 <div class="whale-matrix-card glassmorphism">
                     <div class="whale-matrix-header">
                         <div class="whale-matrix-title-wrap">
                             <div class="whale-title-main">
-                                <span class="whale-icon">🐳</span>
-                                <span class="whale-title-text">權值巨鯨籌碼追蹤矩陣 (Whale Matrix)</span>
+                                <span class="whale-icon">${emptyIcon}</span>
+                                <span class="whale-title-text">${emptyTitle}</span>
                                 <span class="whale-dim-tag">5d / 10d / 20d 三維聯動</span>
                             </div>
                         </div>
+                        <div class="whale-mode-toggle-group">
+                            <button class="whale-mode-toggle-btn ${currentMode === 'whale' ? 'active' : ''}" onclick="switchChipMatrixMode('whale')">🐳 權值百億巨鯨</button>
+                            <button class="whale-mode-toggle-btn ${currentMode === 'fleet' ? 'active' : ''}" onclick="switchChipMatrixMode('fleet')">🚀 中小型爆發艦隊</button>
+                        </div>
                     </div>
                     <div class="chip-empty" style="padding: 30px; text-align: center; color: #94a3b8;">
-                        此交易日 (${chipCurrentDate || '最新'}) 暫無 5d 淨買超百億級或大額巨鯨數據
+                        此交易日 (${chipCurrentDate || '最新'}) 暫無【${modeLabel}】符合條件之籌碼數據
                     </div>
                 </div>
             `;
         }
     } catch (e) {
-        console.error("Error loading whale matrix:", e);
-        container.innerHTML = `<div class="chip-error" style="padding: 20px; text-align: center; color: #f87171;">載入巨鯨矩陣失敗: ${e.message}</div>`;
+        console.error("Error loading whale/fleet matrix:", e);
+        container.innerHTML = `<div class="chip-error" style="padding: 20px; text-align: center; color: #f87171;">載入矩陣失敗: ${e.message}</div>`;
     }
 }
 
-function renderWhaleMatrixHtml(matrixList, tradeDate) {
+function renderWhaleMatrixHtml(matrixList, tradeDate, currentMode = "whale") {
+    const isFleet = currentMode === "fleet";
     const rankBadges = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
 
     const rowsHtml = matrixList.map((item, idx) => {
@@ -3982,6 +4004,10 @@ function renderWhaleMatrixHtml(matrixList, tradeDate) {
         const amt5dClass = amt5d >= 0 ? "gain-text" : "loss-text";
         const amt5dSign = amt5d >= 0 ? "+" : "";
 
+        const purityBadge = item.buy_purity_pct != null 
+            ? `<div class="whale-purity-sub" style="font-size:11px; color:#38bdf8; font-weight:700;">純度 ${Number(item.buy_purity_pct).toFixed(0)}%</div>` 
+            : `<div class="whale-amt-sub">近5日累計</div>`;
+
         const amt10dHtml = amt10d != null 
             ? `<div class="whale-amt-val ${amt10d >= 0 ? 'gain-text' : 'loss-text'}">${amt10d >= 0 ? '+' : ''}${amt10d.toFixed(1)} 億</div><div class="whale-amt-sub">近10日累計</div>`
             : `<div class="whale-amt-val" style="color: #64748b;">--</div><div class="whale-amt-sub">未達榜</div>`;
@@ -3990,9 +4016,9 @@ function renderWhaleMatrixHtml(matrixList, tradeDate) {
             ? `<div class="whale-amt-val ${amt20d >= 0 ? 'gain-text' : 'loss-text'}">${amt20d >= 0 ? '+' : ''}${amt20d.toFixed(1)} 億</div><div class="whale-amt-sub">近20日累計</div>`
             : `<div class="whale-amt-val" style="color: #64748b;">--</div><div class="whale-amt-sub">未達榜</div>`;
 
-        const momentumTag = item.momentum_tag || item.character || '波段控盤';
-        const stratTitle = item.strategy || '百億級巨鯨重押';
-        const stratColor = item.strategy_color || '#fbbf24';
+        const momentumTag = item.momentum_tag || item.character || (isFleet ? '高純度點火' : '波段控盤');
+        const stratTitle = item.strategy || (isFleet ? '高純度主力控盤' : '百億級巨鯨重押');
+        const stratColor = item.strategy_color || (isFleet ? '#fb7185' : '#fbbf24');
         const actionGuide = item.action_guide || item.guidance || '沿主力成本防守操作';
         const costPrice = item.buy_avg_price || item.close_price || '';
 
@@ -4013,16 +4039,16 @@ function renderWhaleMatrixHtml(matrixList, tradeDate) {
                             <span class="whale-name">${escapeHtml(item.stock_name)}</span>
                             <span class="whale-market-tag ${item.market && item.market.includes('櫃') ? 'tpex' : 'twse'}">${escapeHtml(item.market || '上市')}</span>
                         </div>
-                        <div class="whale-industry">${escapeHtml(item.industry || '核心權值')}</div>
+                        <div class="whale-industry">${escapeHtml(item.industry || (isFleet ? '利基題材' : '核心權值'))}</div>
                     </div>
                 </td>
                 <td class="whale-col-broker">
-                    <div class="whale-broker-badge">🏛️ ${escapeHtml(item.broker_name || '主控巨鯨')}</div>
+                    <div class="whale-broker-badge">${isFleet ? '⚡' : '🏛️'} ${escapeHtml(item.broker_name || '主控主力')}</div>
                     <div class="whale-shares-sub">5d 買超 ${formatVolumeShares(item.net_shares_5d)}</div>
                 </td>
                 <td class="whale-col-amt">
                     <div class="whale-amt-val ${amt5dClass}">${amt5dSign}${amt5d.toFixed(1)} 億</div>
-                    <div class="whale-amt-sub">近5日累計</div>
+                    ${purityBadge}
                 </td>
                 <td class="whale-col-amt">
                     ${amt10dHtml}
@@ -4047,20 +4073,32 @@ function renderWhaleMatrixHtml(matrixList, tradeDate) {
         `;
     }).join("");
 
+    const titleIcon = isFleet ? "🚀" : "🐳";
+    const titleText = isFleet ? "中小型飆股籌碼追蹤矩陣" : "權值巨鯨籌碼追蹤矩陣";
+    const subtitleText = isFleet 
+        ? "⚡ 依「主力買超純度 (Purity) ＋ 川湖急行軍動能」排序，鎖定中小型利基題材、主力高純度高度控盤之潛力飆股"
+        : "⚡ 依「實體買超金額 (億)」權重排序，穿透中小型股籌碼迷霧，鎖定掌握台股半壁江山的百億級巨鯨資金底牌";
+
     return `
         <div class="whale-matrix-card glassmorphism">
             <div class="whale-matrix-header">
                 <div class="whale-matrix-title-wrap">
                     <div class="whale-title-main">
-                        <span class="whale-icon">🐳</span>
-                        <span class="whale-title-text">權值巨鯨籌碼追蹤矩陣</span>
+                        <span class="whale-icon">${titleIcon}</span>
+                        <span class="whale-title-text">${titleText}</span>
                         <span class="whale-dim-tag">5d / 10d / 20d 三維聯動</span>
                     </div>
                     <div class="whale-subtitle">
-                        ⚡ 依「實體買超金額 (億)」權重排序，穿透中小型股籌碼迷霧，鎖定掌握台股半壁江山的百億級巨鯨資金底牌
+                        ${subtitleText}
                     </div>
                 </div>
-                <div class="whale-date-badge">📅 基準日：${tradeDate || chipCurrentDate}</div>
+                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+                    <div class="whale-mode-toggle-group">
+                        <button class="whale-mode-toggle-btn ${currentMode === 'whale' ? 'active' : ''}" onclick="switchChipMatrixMode('whale')">🐳 權值百億巨鯨</button>
+                        <button class="whale-mode-toggle-btn ${currentMode === 'fleet' ? 'active' : ''}" onclick="switchChipMatrixMode('fleet')">🚀 中小型爆發艦隊</button>
+                    </div>
+                    <div class="whale-date-badge">📅 基準日：${tradeDate || chipCurrentDate}</div>
+                </div>
             </div>
 
             <div class="whale-table-wrapper">
@@ -4069,11 +4107,11 @@ function renderWhaleMatrixHtml(matrixList, tradeDate) {
                         <tr>
                             <th style="width: 55px; text-align: center;">名次</th>
                             <th style="min-width: 140px;">標的名稱</th>
-                            <th style="min-width: 150px;">主控巨鯨席位</th>
+                            <th style="min-width: 150px;">${isFleet ? '主控主力席位' : '主控巨鯨席位'}</th>
                             <th style="min-width: 105px; text-align: right;">5日買超金額</th>
                             <th style="min-width: 105px; text-align: right;">10日買超金額</th>
                             <th style="min-width: 105px; text-align: right;">20日買超金額</th>
-                            <th style="min-width: 220px;">巨鯨操盤定性與戰略指引</th>
+                            <th style="min-width: 220px;">主力操盤定性與戰略指引</th>
                             <th style="width: 75px; text-align: center;">操作</th>
                         </tr>
                     </thead>

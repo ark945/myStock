@@ -3376,6 +3376,45 @@ tr.dragging {
     line-height: 1.5;
 }
 
+.whale-mode-toggle-group {
+    display: flex;
+    gap: 6px;
+    background: rgba(15, 23, 42, 0.85);
+    padding: 4px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.whale-mode-toggle-btn {
+    background: transparent;
+    color: #94a3b8;
+    border: 1px solid transparent;
+    padding: 6px 13px;
+    font-size: 12.5px;
+    font-weight: 700;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+}
+
+.whale-mode-toggle-btn:hover {
+    color: #f1f5f9;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.whale-mode-toggle-btn.active {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.25) 0%, rgba(37, 99, 235, 0.25) 100%);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.6);
+    box-shadow: 0 0 14px rgba(56, 189, 248, 0.35);
+    text-shadow: 0 0 6px rgba(56, 189, 248, 0.4);
+}
+
 .whale-date-badge {
     background: rgba(30, 41, 59, 0.8);
     border: 1px solid rgba(255, 255, 255, 0.12);
