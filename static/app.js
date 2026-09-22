@@ -4010,11 +4010,15 @@ function renderWhaleMatrixHtml(matrixList, tradeDate, currentMode = "whale") {
 
         const amt10dHtml = amt10d != null 
             ? `<div class="whale-amt-val ${amt10d >= 0 ? 'gain-text' : 'loss-text'}">${amt10d >= 0 ? '+' : ''}${amt10d.toFixed(1)} 億</div><div class="whale-amt-sub">近10日累計</div>`
-            : `<div class="whale-amt-val" style="color: #64748b;">--</div><div class="whale-amt-sub">未達榜</div>`;
+            : (isFleet 
+                ? `<div class="whale-amt-val" style="color: #94a3b8; font-size:12px; font-weight:600;">無底倉</div><div class="whale-amt-sub" style="color:#38bdf8; font-size:11px;">⚡ 短衝新進</div>`
+                : `<div class="whale-amt-val" style="color: #64748b;">--</div><div class="whale-amt-sub">未達榜</div>`);
 
         const amt20dHtml = amt20d != null 
             ? `<div class="whale-amt-val ${amt20d >= 0 ? 'gain-text' : 'loss-text'}">${amt20d >= 0 ? '+' : ''}${amt20d.toFixed(1)} 億</div><div class="whale-amt-sub">近20日累計</div>`
-            : `<div class="whale-amt-val" style="color: #64748b;">--</div><div class="whale-amt-sub">未達榜</div>`;
+            : (isFleet 
+                ? `<div class="whale-amt-val" style="color: #94a3b8; font-size:12px; font-weight:600;">無底倉</div><div class="whale-amt-sub" style="color:#38bdf8; font-size:11px;">🚀 近5日突擊</div>`
+                : `<div class="whale-amt-val" style="color: #64748b;">--</div><div class="whale-amt-sub">未達榜</div>`);
 
         const momentumTag = item.momentum_tag || item.character || (isFleet ? '高純度點火' : '波段控盤');
         const stratTitle = item.strategy || (isFleet ? '高純度主力控盤' : '百億級巨鯨重押');
